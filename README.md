@@ -1,20 +1,46 @@
-<<<<<<< HEAD
-# remuh
+# REMUH - Música Minimalista Sincronizada 🎵
 
-A new Flutter project.
+REMUH es un reproductor de música moderno, minimalista y potente construido con **Flutter**. Enfocado en la velocidad, la elegancia y la personalización de letras sincronizadas.
 
-## Getting Started
+## ✨ Características Principales
 
-This project is a starting point for a Flutter application.
+### 🎧 Reproducción Inteligente
+- **Escaneo Inteligente**: Indexación automática de archivos locales con detección de cambios (Pull-to-refresh).
+- **Gestos Avanzados**:
+  - Desliza horizontalmente para cambiar de canción.
+  - Desliza hacia abajo para ver la cola de reproducción ("A continuación").
+  - Desliza hacia arriba para volver a la biblioteca.
+- **Segundo Plano**: Soporte completo para controles en la pantalla de bloqueo y notificaciones del sistema.
 
-A few resources to get you started if this is your first Flutter project:
+### 🎤 Karaoke & Letras
+- **LRC Sync**: Soporte nativo para archivos de letras sincronizadas (.lrc).
+- **Editor LRC Integrado**: Crea tus propias sincronizaciones mientras escuchas la canción con el botón de "Marcado Rápido".
+- **Búsqueda Automática**: Busca automáticamente archivos de letras en la carpeta de la canción.
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+### 📂 Organización
+- **Playlists Personalizadas**: Crea, edita y gestiona tus propias listas de reproducción guardadas localmente.
+- **Cola Dinámica**: Reordena o elimina canciones de la cola actual mediante Drag & Drop.
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
-=======
-# remuh
->>>>>>> 9ed4d0a229f6f9d52edcec444bf0acd135e95249
+## 🛠️ Arquitectura
+El proyecto sigue los principios de **Clean Architecture** y **Riverpod** para la gestión de estado reactiva:
+- **Core**: Constantes, temas y utilidades.
+- **Data**: Implementación de repositorios y fuentes de datos (SQLite, on_audio_query).
+- **Domain**: Entidades de negocio y casos de uso.
+- **Presentation**: UI reactiva organizada en Providers, Screens y Widgets.
+
+## 🚀 Instalación y Uso
+
+1. **Clonar**: `git clone https://github.com/leora/REMUH`
+2. **Dependencias**: `flutter pub get`
+3. **Ejecutar**: `flutter run`
+
+### Guía del Editor de Letras
+1. Abre una canción en el reproductor.
+2. Toca el icono de letras -> **Editar letras (LRC)**.
+3. Pega el texto de la letra.
+4. Dale a Play.
+5. Cada vez que escuches el inicio de una frase, toca **"Insertar Tiempo Actual"**.
+6. Guarda con el icono superior y ¡disfruta de tu Karaoke personalizado!
+
+---
+*Desarrollado con ❤️ para amantes de la música.*

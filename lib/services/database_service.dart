@@ -1,0 +1,52 @@
+import 'package:sqflite/sqflite.dart';
+import 'package:path/path.dart';
+import '../core/utils/logger.dart';
+
+class DatabaseService {
+  static final DatabaseService _instance = DatabaseService._internal();
+  factory DatabaseService() => _instance;
+  DatabaseService._internal();
+
+  Database? _database;
+
+  Future<Database> get database async {
+    if (_database != null) return _database!;
+    _database = await _initDatabase();
+    return _database!;
+  }
+
+  Future<Database> _initDatabase() async {
+    final dbPath = await getDatabasesPath();
+    final path = join(dbPath, 'remuh.db');
+
+    Logger.info('Initializing database at $path');
+
+    return await openDatabase(
+      path,
+      version: 1,
+      onCreate: (db, version) async {
+        Logger.info('Creating database tables...');
+
+        // Table for playlists
+        await db.execute('''
+          CREATE TABLE playlists (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            createdAt TEXT NOT NULL
+          )
+        ''');
+
+        // Table for playlist-track relationship
+        await db.execute('''
+          CREATE TABLE playlist_tracks (
+            playlistId INTEGER NOT NULL,
+            trackId TEXT NOT NULL,
+            position INTEGER NOT NULL,
+            PRIMARY KEY (playlistId, trackId),
+            FOREIGN KEY (playlistId) REFERENCES playlists (id) ON DELETE CASCADE
+          )
+        ''');
+      },
+    );
+  }
+}

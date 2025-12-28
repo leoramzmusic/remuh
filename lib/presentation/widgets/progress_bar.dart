@@ -22,9 +22,10 @@ class ProgressBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final playerState = ref.watch(audioPlayerProvider);
-    final duration = playerState.duration ?? Duration.zero;
-    final position = playerState.position;
+    final position = ref.watch(audioPlayerProvider.select((s) => s.position));
+    final duration =
+        ref.watch(audioPlayerProvider.select((s) => s.duration)) ??
+        Duration.zero;
 
     return Column(
       children: [
@@ -40,7 +41,7 @@ class ProgressBar extends ConsumerWidget {
             thumbColor: Theme.of(context).colorScheme.primary,
             overlayColor: Theme.of(
               context,
-            ).colorScheme.primary.withOpacity(0.2),
+            ).colorScheme.primary.withValues(alpha: 0.2),
           ),
           child: Slider(
             value: duration.inMilliseconds > 0
@@ -69,7 +70,7 @@ class ProgressBar extends ConsumerWidget {
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Theme.of(
                     context,
-                  ).colorScheme.onSurface.withOpacity(0.6),
+                  ).colorScheme.onSurface.withValues(alpha: 0.6),
                 ),
               ),
               Text(
@@ -77,7 +78,7 @@ class ProgressBar extends ConsumerWidget {
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Theme.of(
                     context,
-                  ).colorScheme.onSurface.withOpacity(0.6),
+                  ).colorScheme.onSurface.withValues(alpha: 0.6),
                 ),
               ),
             ],

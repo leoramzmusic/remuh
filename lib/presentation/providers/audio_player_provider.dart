@@ -10,14 +10,14 @@ import '../../domain/usecases/scan_tracks.dart';
 import '../../services/audio_service.dart';
 import '../../core/utils/logger.dart';
 
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/permission_service.dart';
 import '../../data/datasources/local_audio_source.dart';
 
 // Provider del servicio de audio
-final audioServiceProvider = Provider<AudioService>((ref) {
-  final service = AudioService();
-  ref.onDispose(() => service.dispose());
-  return service;
+// Provider del Handler (inicializado en main.dart)
+final audioHandlerProvider = Provider<AudioPlayerHandler>((ref) {
+  throw UnimplementedError('Provider was not overridden');
 });
 
 final permissionServiceProvider = Provider<PermissionService>((ref) {
@@ -30,10 +30,10 @@ final localAudioSourceProvider = Provider<LocalAudioSource>((ref) {
 
 // Provider del repositorio
 final audioRepositoryProvider = Provider<AudioRepository>((ref) {
-  final service = ref.watch(audioServiceProvider);
+  final audioHandler = ref.watch(audioHandlerProvider);
   final permissionService = ref.watch(permissionServiceProvider);
   final localAudioSource = ref.watch(localAudioSourceProvider);
-  return AudioRepositoryImpl(service, permissionService, localAudioSource);
+  return AudioRepositoryImpl(audioHandler, permissionService, localAudioSource);
 });
 
 // Providers de casos de uso
@@ -126,6 +126,43 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
     this._seekAudio,
   ) : super(const AudioPlayerState()) {
     _init();
+    _restoreState();
+  }
+
+  static const _keyLastTrackId = 'last_track_id';
+  static const _keyLastPosition = 'last_position_ms';
+
+  Future<void> _restoreState() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final lastTrackId = prefs.getString(_keyLastTrackId);
+      final lastPositionMs = prefs.getInt(_keyLastPosition) ?? 0;
+
+      if (lastTrackId != null) {
+        Logger.info(
+          'Restoring state for track: $lastTrackId at ${lastPositionMs}ms',
+        );
+
+        // We need the library to be loaded to find the track.
+        // For simplicity, we'll assume the library scan is triggered elsewhere.
+        // But here we can't easily wait for it without more complex logic.
+        // Alternative: The scan triggers this?
+        // For now, let's keep it simple: we just have the data.
+      }
+    } catch (e) {
+      Logger.error('Error restoring state', e);
+    }
+  }
+
+  Future<void> _saveState() async {
+    final trackId = state.currentTrack?.id;
+    final positionMs = state.position.inMilliseconds;
+
+    if (trackId != null) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keyLastTrackId, trackId);
+      await prefs.setInt(_keyLastPosition, positionMs);
+    }
   }
 
   void _init() {
@@ -141,11 +178,17 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
           skipToNext();
         }
       }
+
+      _saveState();
     });
 
     // Escuchar cambios en la posición
     _repository.positionStream.listen((position) {
       state = state.copyWith(position: position);
+
+      // Save position periodically (e.g., every 5 seconds or on significant changes)
+      // To avoid writing to disk too often, we could throttle this.
+      // For now, let's just save on important events.
     });
 
     // Escuchar cambios en la duración
@@ -241,6 +284,68 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
       Logger.error('Error seeking', e);
       state = state.copyWith(error: e.toString());
     }
+  }
+
+  /// Reordenar la cola
+  void reorderQueue(int oldIndex, int newIndex) {
+    if (oldIndex < newIndex) {
+      newIndex -= 1;
+    }
+
+    final List<Track> newQueue = List.from(state.queue);
+    final Track track = newQueue.removeAt(oldIndex);
+    newQueue.insert(newIndex, track);
+
+    // Actualizar el índice actual si la pista que suena se movió
+    int newCurrentIndex = state.currentIndex;
+    if (oldIndex == state.currentIndex) {
+      newCurrentIndex = newIndex;
+    } else if (oldIndex < state.currentIndex &&
+        newIndex >= state.currentIndex) {
+      newCurrentIndex -= 1;
+    } else if (oldIndex > state.currentIndex &&
+        newIndex <= state.currentIndex) {
+      newCurrentIndex += 1;
+    }
+
+    state = state.copyWith(queue: newQueue, currentIndex: newCurrentIndex);
+
+    _saveState();
+  }
+
+  /// Quitar pista de la cola
+  void removeFromQueue(int index) {
+    if (state.queue.length <= 1) {
+      return; // No dejar la cola vacía si está sonando
+    }
+
+    final List<Track> newQueue = List.from(state.queue);
+    newQueue.removeAt(index);
+
+    int newCurrentIndex = state.currentIndex;
+    if (index == state.currentIndex) {
+      // Si quitamos la que suena, saltar a la siguiente (o anterior si era la última)
+      if (index < newQueue.length) {
+        // Permanecemos en el mismo índice que ahora apunta a la siguiente pista
+        loadTrackInQueue(index);
+      } else {
+        newCurrentIndex -= 1;
+        loadTrackInQueue(newCurrentIndex);
+      }
+    } else if (index < state.currentIndex) {
+      newCurrentIndex -= 1;
+    }
+
+    state = state.copyWith(queue: newQueue, currentIndex: newCurrentIndex);
+
+    _saveState();
+  }
+
+  /// Cargar una pista específica de la cola sin empezar reproducción necesariamente
+  Future<void> loadTrackInQueue(int index) async {
+    final track = state.queue[index];
+    await _loadTrack(track);
+    state = state.copyWith(currentTrack: track, currentIndex: index);
   }
 }
 

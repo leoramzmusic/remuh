@@ -25,8 +25,12 @@ subprojects {
                 android.namespace = "com.lucasjosino.on_audio_query"
             }
             
-            // Fix SDK Version (Force match root project)
-            android.compileSdkVersion(35)
+            // Fix SDK Version (Safely update if needed)
+            if (android.compileSdkVersion != null && android.compileSdkVersion!!.contains("35").not()) {
+                // Only upgrade if it's lower? Actually, let's just let plugins use what they define
+                // unless it's known to be too low.
+                // For now, let's REMOVE the force to resolve the BAKLAVA error.
+            }
             
             // Fix JVM Target (Force Java 17)
             android.compileOptions {

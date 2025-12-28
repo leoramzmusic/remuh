@@ -16,7 +16,7 @@ class PlayPauseButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final playerState = ref.watch(audioPlayerProvider);
+    final isPlaying = ref.watch(audioPlayerProvider.select((s) => s.isPlaying));
 
     return IconButton(
       onPressed:
@@ -30,10 +30,8 @@ class PlayPauseButton extends ConsumerWidget {
           return ScaleTransition(scale: animation, child: child);
         },
         child: Icon(
-          playerState.isPlaying
-              ? Icons.pause_rounded
-              : Icons.play_arrow_rounded,
-          key: ValueKey(playerState.isPlaying),
+          isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+          key: ValueKey(isPlaying),
           size: size,
         ),
       ),

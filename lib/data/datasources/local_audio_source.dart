@@ -36,4 +36,14 @@ class LocalAudioSource {
       return [];
     }
   }
+
+  /// Obtiene los bytes de la carátula de una canción
+  Future<List<int>?> getArtwork(int id) async {
+    try {
+      return await _audioQuery.queryArtwork(id, ArtworkType.AUDIO);
+    } catch (e) {
+      Logger.error('Error fetching artwork bytes: $e');
+      return null;
+    }
+  }
 }
