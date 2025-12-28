@@ -69,4 +69,26 @@ class LibraryViewModel extends StateNotifier<LibraryState> {
       state = state.copyWith(isScanning: false, error: e.toString());
     }
   }
+
+  /// Obtener pistas de un artista específico
+  List<Track> getTracksByArtist(String artist) {
+    return state.tracks.where((t) => t.artist == artist).toList();
+  }
+
+  /// Obtener pistas de un álbum específico
+  List<Track> getTracksByAlbum(String album) {
+    return state.tracks.where((t) => t.album == album).toList();
+  }
+
+  /// Obtener lista de artistas únicos
+  List<String> getArtists() {
+    return state.tracks.map((t) => t.artist ?? 'Desconocido').toSet().toList()
+      ..sort();
+  }
+
+  /// Obtener lista de álbumes únicos
+  List<String> getAlbums() {
+    return state.tracks.map((t) => t.album ?? 'Desconocido').toSet().toList()
+      ..sort();
+  }
 }

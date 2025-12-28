@@ -45,6 +45,32 @@ class PlaylistsNotifier extends StateNotifier<AsyncValue<List<Playlist>>> {
     await _repository.removeTrackFromPlaylist(playlistId, trackId);
     await loadPlaylists();
   }
+
+  Future<void> toggleFavorite(String trackId) async {
+    final playlists = state.value ?? [];
+    Playlist? favorites = playlists
+        .where((p) => p.name == 'Favoritos')
+        .firstOrNull;
+
+    if (favorites == null) {
+      await _repository.createPlaylist(Playlist(name: 'Favoritos'));
+      final all = await _repository.getAllPlaylists();
+      state = AsyncValue.data(all);
+      favorites = all.firstWhere((p) => p.name == 'Favoritos');
+    }
+
+    if (favorites.trackIds.contains(trackId)) {
+      await removeTrackFromPlaylist(favorites.id!, trackId);
+    } else {
+      await addTrackToPlaylist(favorites.id!, trackId);
+    }
+  }
+
+  bool isFavorite(String trackId) {
+    final playlists = state.value ?? [];
+    final favorites = playlists.where((p) => p.name == 'Favoritos').firstOrNull;
+    return favorites?.trackIds.contains(trackId) ?? false;
+  }
 }
 
 final playlistsProvider =

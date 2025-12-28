@@ -70,6 +70,9 @@ class AudioPlayerState {
   final Duration? duration;
   final List<Track> queue;
   final int currentIndex;
+  final AudioRepeatMode repeatMode;
+  final bool shuffleMode;
+  final List<int> shuffledIndices;
   final String? error;
 
   const AudioPlayerState({
@@ -79,6 +82,9 @@ class AudioPlayerState {
     this.duration,
     this.queue = const [],
     this.currentIndex = -1,
+    this.repeatMode = AudioRepeatMode.off,
+    this.shuffleMode = false,
+    this.shuffledIndices = const [],
     this.error,
   });
 
@@ -89,6 +95,9 @@ class AudioPlayerState {
     Duration? duration,
     List<Track>? queue,
     int? currentIndex,
+    AudioRepeatMode? repeatMode,
+    bool? shuffleMode,
+    List<int>? shuffledIndices,
     String? error,
   }) {
     return AudioPlayerState(
@@ -98,6 +107,9 @@ class AudioPlayerState {
       duration: duration ?? this.duration,
       queue: queue ?? this.queue,
       currentIndex: currentIndex ?? this.currentIndex,
+      repeatMode: repeatMode ?? this.repeatMode,
+      shuffleMode: shuffleMode ?? this.shuffleMode,
+      shuffledIndices: shuffledIndices ?? this.shuffledIndices,
       error: error,
     );
   }
@@ -172,11 +184,9 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
     _repository.playbackStateStream.listen((playbackState) {
       state = state.copyWith(playbackState: playbackState);
 
-      // Auto-avance simple: si completa, pasar al siguiente
+      // Auto-avance con nuestra lógica personalizada
       if (playbackState == PlaybackState.completed) {
-        if (state.hasNext) {
-          skipToNext();
-        }
+        skipToNext();
       }
 
       _saveState();
@@ -199,22 +209,81 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
     });
   }
 
+  /// Cambiar modo de repetición
+  Future<void> toggleRepeatMode() async {
+    final nextMode = switch (state.repeatMode) {
+      AudioRepeatMode.off => AudioRepeatMode.all,
+      AudioRepeatMode.all => AudioRepeatMode.one,
+      AudioRepeatMode.one => AudioRepeatMode.off,
+    };
+
+    try {
+      await _repository.setRepeatMode(nextMode);
+      state = state.copyWith(repeatMode: nextMode);
+    } catch (e) {
+      Logger.error('Error toggling repeat mode', e);
+    }
+  }
+
+  /// Cambiar modo aleatorio
+  Future<void> toggleShuffle() async {
+    try {
+      final nextShuffle = !state.shuffleMode;
+      List<int> shuffledIndices = [];
+
+      if (nextShuffle && state.queue.isNotEmpty) {
+        shuffledIndices = List.generate(state.queue.length, (i) => i);
+        shuffledIndices.shuffle();
+
+        // Asegurarse de que el índice actual sea el primero en la lista mezclada
+        // para una transición suave, o simplemente barajar.
+        if (state.currentIndex != -1) {
+          shuffledIndices.remove(state.currentIndex);
+          shuffledIndices.insert(0, state.currentIndex);
+        }
+      }
+
+      state = state.copyWith(
+        shuffleMode: nextShuffle,
+        shuffledIndices: shuffledIndices,
+      );
+      // No llamamos al handler nativo para evitar conflictos con nuestra lógica
+    } catch (e) {
+      Logger.error('Error toggling shuffle', e);
+    }
+  }
+
   /// Cargar y reproducir una pista (cola unitaria)
   Future<void> loadAndPlay(Track track) async {
     return loadPlaylist([track], 0);
   }
 
   /// Cargar una lista de reproducción
-  Future<void> loadPlaylist(List<Track> tracks, int initialIndex) async {
+  Future<void> loadPlaylist(
+    List<Track> tracks,
+    int initialIndex, {
+    bool startShuffled = false,
+  }) async {
     if (tracks.isEmpty) return;
 
     try {
-      final track = tracks[initialIndex];
+      int playIndex = initialIndex;
+      List<int> shuffledIndices = [];
+
+      if (startShuffled) {
+        shuffledIndices = List.generate(tracks.length, (i) => i);
+        shuffledIndices.shuffle();
+        playIndex = shuffledIndices[0];
+      }
+
+      final track = tracks[playIndex];
       Logger.info('Loading playlist starting at: ${track.title}');
 
       state = state.copyWith(
         queue: tracks,
-        currentIndex: initialIndex,
+        currentIndex: playIndex,
+        shuffleMode: startShuffled,
+        shuffledIndices: shuffledIndices,
         error: null,
       );
 
@@ -230,14 +299,30 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
 
   /// Saltar a la siguiente pista
   Future<void> skipToNext() async {
-    if (state.hasNext) {
-      final nextIndex = state.currentIndex + 1;
+    if (state.queue.isEmpty) return;
+
+    int nextIndex = -1;
+
+    if (state.shuffleMode && state.shuffledIndices.isNotEmpty) {
+      final currentPos = state.shuffledIndices.indexOf(state.currentIndex);
+      if (currentPos != -1 && currentPos < state.shuffledIndices.length - 1) {
+        nextIndex = state.shuffledIndices[currentPos + 1];
+      } else if (state.repeatMode == AudioRepeatMode.all) {
+        nextIndex = state.shuffledIndices[0];
+      }
+    } else {
+      if (state.currentIndex < state.queue.length - 1) {
+        nextIndex = state.currentIndex + 1;
+      } else if (state.repeatMode == AudioRepeatMode.all) {
+        nextIndex = 0;
+      }
+    }
+
+    if (nextIndex != -1) {
       final nextTrack = state.queue[nextIndex];
       Logger.info('Skipping to next: ${nextTrack.title}');
 
-      // Actualizamos estado antes de cargar para UI optimista
       state = state.copyWith(currentIndex: nextIndex);
-
       await _loadTrack(nextTrack);
       state = state.copyWith(currentTrack: nextTrack);
       await _playAudio();
@@ -246,18 +331,34 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
 
   /// Saltar a la pista anterior
   Future<void> skipToPrevious() async {
-    if (state.hasPrevious) {
-      final prevIndex = state.currentIndex - 1;
+    if (state.queue.isEmpty) return;
+
+    int prevIndex = -1;
+
+    if (state.shuffleMode && state.shuffledIndices.isNotEmpty) {
+      final currentPos = state.shuffledIndices.indexOf(state.currentIndex);
+      if (currentPos > 0) {
+        prevIndex = state.shuffledIndices[currentPos - 1];
+      } else if (state.repeatMode == AudioRepeatMode.all) {
+        prevIndex = state.shuffledIndices.last;
+      }
+    } else {
+      if (state.currentIndex > 0) {
+        prevIndex = state.currentIndex - 1;
+      } else if (state.repeatMode == AudioRepeatMode.all) {
+        prevIndex = state.queue.length - 1;
+      }
+    }
+
+    if (prevIndex != -1) {
       final prevTrack = state.queue[prevIndex];
       Logger.info('Skipping to previous: ${prevTrack.title}');
 
       state = state.copyWith(currentIndex: prevIndex);
-
       await _loadTrack(prevTrack);
       state = state.copyWith(currentTrack: prevTrack);
       await _playAudio();
     } else {
-      // Si no hay anterior, reiniciar la actual
       await seekTo(Duration.zero);
     }
   }

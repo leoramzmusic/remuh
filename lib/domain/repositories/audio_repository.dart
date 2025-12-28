@@ -3,6 +3,9 @@ import '../entities/track.dart';
 /// Estados de reproducción
 enum PlaybackState { stopped, playing, paused, buffering, completed, error }
 
+/// Modos de repetición
+enum AudioRepeatMode { off, one, all }
+
 /// Repositorio abstracto para operaciones de audio
 abstract class AudioRepository {
   /// Inicializar el reproductor
@@ -40,4 +43,10 @@ abstract class AudioRepository {
 
   /// Liberar recursos
   Future<void> dispose();
+
+  /// Cambiar modo de repetición
+  Future<void> setRepeatMode(AudioRepeatMode mode);
+
+  /// Activar/desactivar aleatorio
+  Future<void> setShuffleMode(bool enabled);
 }

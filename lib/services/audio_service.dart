@@ -3,6 +3,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:just_audio/just_audio.dart';
 import '../core/utils/logger.dart';
 import '../domain/entities/track.dart';
+import '../domain/repositories/audio_repository.dart';
 // Note: We removed 'implements AudioRepository' because AudioHandler has its own interface.
 // AudioRepositoryImpl will adapt to this.
 
@@ -135,7 +136,9 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler {
 
       // Cargar audio
       AudioSource source;
-      if (track.fileUrl != null && track.fileUrl!.startsWith('http')) {
+      if (track.fileUrl != null &&
+          (track.fileUrl!.startsWith('http') ||
+              track.fileUrl!.startsWith('content://'))) {
         source = AudioSource.uri(Uri.parse(track.fileUrl!));
       } else {
         source = AudioSource.file(track.filePath);
@@ -155,4 +158,20 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler {
 
   Stream<Duration> get positionStream => _player.positionStream;
   Stream<Duration?> get durationStream => _player.durationStream;
+
+  Future<void> setRepeatModeCustom(AudioRepeatMode mode) async {
+    final loopMode = switch (mode) {
+      AudioRepeatMode.off => LoopMode.off,
+      AudioRepeatMode.one => LoopMode.one,
+      AudioRepeatMode.all => LoopMode.all,
+    };
+    await _player.setLoopMode(loopMode);
+  }
+
+  Future<void> setShuffleModeEnabled(bool enabled) async {
+    await _player.setShuffleModeEnabled(enabled);
+    if (enabled) {
+      await _player.shuffle();
+    }
+  }
 }

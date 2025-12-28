@@ -23,8 +23,8 @@ class TrackArtwork extends StatelessWidget {
       artworkWidth: size,
       artworkHeight: size,
       // 'size' en on_audio_query controla la resolución del bitmap.
-      // 200 es el default (thumbnail). Para HD usamos algo mayor como 800.
-      size: size > 100 ? 800 : 200,
+      // 200 es el default (thumbnail). Para HD usamos 1000.
+      size: size > 100 ? 1000 : 200,
       artworkQuality: size > 100 ? FilterQuality.high : FilterQuality.medium,
       artworkBorder: BorderRadius.circular(borderRadius),
       nullArtworkWidget: Container(

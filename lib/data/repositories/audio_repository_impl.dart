@@ -110,4 +110,12 @@ class AudioRepositoryImpl implements AudioRepository {
 
   @override
   Future<void> dispose() => _audioHandler.stop();
+
+  @override
+  Future<void> setRepeatMode(AudioRepeatMode mode) =>
+      _audioHandler.setRepeatModeCustom(mode);
+
+  @override
+  Future<void> setShuffleMode(bool enabled) =>
+      _audioHandler.setShuffleModeEnabled(enabled);
 }

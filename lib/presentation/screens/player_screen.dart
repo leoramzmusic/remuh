@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/app_constants.dart';
 import '../../domain/entities/track.dart';
+import '../../domain/repositories/audio_repository.dart';
 
 import '../providers/audio_player_provider.dart';
 import '../widgets/play_pause_button.dart';
@@ -12,6 +13,8 @@ import 'playlist_screen.dart';
 import 'queue_screen.dart';
 import '../widgets/lyrics_view.dart';
 import 'lyrics_editor_screen.dart';
+import '../providers/playlists_provider.dart';
+import '../../domain/entities/playlist.dart';
 
 /// Pantalla principal del reproductor
 class PlayerScreen extends ConsumerStatefulWidget {
@@ -24,6 +27,7 @@ class PlayerScreen extends ConsumerStatefulWidget {
 class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   late PageController _pageController;
   bool _showLyrics = false;
+  bool _showOverlay = false;
 
   @override
   void initState() {
@@ -96,6 +100,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final currentIndex = ref.watch(
       audioPlayerProvider.select((s) => s.currentIndex),
     );
+    final repeatMode = ref.watch(
+      audioPlayerProvider.select((s) => s.repeatMode),
+    );
+    final shuffleMode = ref.watch(
+      audioPlayerProvider.select((s) => s.shuffleMode),
+    );
 
     // Escuchar cambios de índice para animar el PageView
     ref.listen(audioPlayerProvider.select((s) => s.currentIndex), (
@@ -105,11 +115,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       if (next >= 0 &&
           _pageController.hasClients &&
           _pageController.page?.round() != next) {
-        _pageController.animateToPage(
-          next,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-        );
+        final diff = (next - (_pageController.page?.round() ?? 0)).abs();
+        if (diff > 1) {
+          // Si el salto es grande, saltamos directamente para no cargar carátulas intermedias
+          _pageController.jumpToPage(next);
+        } else {
+          _pageController.animateToPage(
+            next,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+          );
+        }
       }
     });
 
@@ -192,23 +208,39 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     alignment: Alignment.center,
                     children: [
                       // Carátula (se desvanece si hay letras)
-                      AnimatedOpacity(
-                        duration: const Duration(milliseconds: 500),
-                        opacity: _showLyrics ? 0.2 : 1.0,
-                        child: PageView.builder(
-                          controller: _pageController,
-                          itemCount: queue.length,
-                          onPageChanged: (index) {
-                            if (index != currentIndex) {
-                              ref
-                                  .read(audioPlayerProvider.notifier)
-                                  .loadTrackInQueue(index);
-                            }
-                          },
-                          itemBuilder: (context, index) {
-                            final track = queue[index];
-                            return _buildArtwork(context, track);
-                          },
+                      GestureDetector(
+                        onTap: () =>
+                            setState(() => _showOverlay = !_showOverlay),
+                        child: Stack(
+                          children: [
+                            AnimatedOpacity(
+                              duration: const Duration(milliseconds: 500),
+                              opacity: _showLyrics ? 0.2 : 1.0,
+                              child: PageView.builder(
+                                controller: _pageController,
+                                itemCount: queue.length,
+                                onPageChanged: (index) {
+                                  if (index != currentIndex) {
+                                    ref
+                                        .read(audioPlayerProvider.notifier)
+                                        .loadTrackInQueue(index);
+                                  }
+                                },
+                                itemBuilder: (context, index) {
+                                  final track = queue[index];
+                                  return _buildArtwork(context, track);
+                                },
+                              ),
+                            ),
+                            if (_showOverlay && !_showLyrics)
+                              Positioned.fill(
+                                child: _buildOverlay(
+                                  context,
+                                  ref,
+                                  currentTrack,
+                                ),
+                              ),
+                          ],
                         ),
                       ),
 
@@ -262,8 +294,24 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
                 // Controles
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
+                    // Botón Shuffle
+                    IconButton(
+                      onPressed: () => ref
+                          .read(audioPlayerProvider.notifier)
+                          .toggleShuffle(),
+                      icon: Icon(
+                        shuffleMode
+                            ? Icons.shuffle_on_rounded
+                            : Icons.shuffle_rounded,
+                        color: shuffleMode
+                            ? Theme.of(context).colorScheme.primary
+                            : null,
+                      ),
+                      iconSize: AppConstants.mediumIconSize,
+                    ),
+
                     // Botón anterior
                     IconButton(
                       onPressed: hasPrevious
@@ -275,12 +323,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       iconSize: AppConstants.largeIconSize,
                     ),
 
-                    const SizedBox(width: AppConstants.defaultPadding),
-
                     // Botón play/pause
                     const PlayPauseButton(),
-
-                    const SizedBox(width: AppConstants.defaultPadding),
 
                     // Botón siguiente
                     IconButton(
@@ -291,6 +335,24 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           : null,
                       icon: const Icon(Icons.skip_next_rounded),
                       iconSize: AppConstants.largeIconSize,
+                    ),
+
+                    // Botón Repeat
+                    IconButton(
+                      onPressed: () => ref
+                          .read(audioPlayerProvider.notifier)
+                          .toggleRepeatMode(),
+                      icon: Icon(
+                        repeatMode == AudioRepeatMode.one
+                            ? Icons.repeat_one_on_rounded
+                            : repeatMode == AudioRepeatMode.all
+                            ? Icons.repeat_on_rounded
+                            : Icons.repeat_rounded,
+                        color: repeatMode != AudioRepeatMode.off
+                            ? Theme.of(context).colorScheme.primary
+                            : null,
+                      ),
+                      iconSize: AppConstants.mediumIconSize,
                     ),
                   ],
                 ),
@@ -356,6 +418,120 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         size: 100,
         color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
       ),
+    );
+  }
+
+  Widget _buildOverlay(BuildContext context, WidgetRef ref, Track? track) {
+    if (track == null) return const SizedBox.shrink();
+
+    final isFav = ref.watch(playlistsProvider.notifier).isFavorite(track.id);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.black.withAlpha(100),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      padding: const EdgeInsets.all(AppConstants.defaultPadding),
+      child: Stack(
+        children: [
+          // Esquina superior izquierda: Añadir a Playlist
+          Align(
+            alignment: Alignment.topLeft,
+            child: IconButton(
+              icon: const Icon(
+                Icons.playlist_add_rounded,
+                color: Colors.white,
+                size: 32,
+              ),
+              onPressed: () => _showPlaylistPicker(context, ref, track),
+            ),
+          ),
+
+          // Arriba Centro: Texto Lyrics
+          Align(
+            alignment: Alignment.topCenter,
+            child: TextButton(
+              onPressed: () {
+                setState(() {
+                  _showLyrics = true;
+                  _showOverlay = false;
+                });
+              },
+              child: const Text(
+                'LYRICS',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 2,
+                ),
+              ),
+            ),
+          ),
+
+          // Esquina superior derecha: Favorito
+          Align(
+            alignment: Alignment.topRight,
+            child: IconButton(
+              icon: Icon(
+                isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                color: isFav ? Colors.redAccent : Colors.white,
+                size: 32,
+              ),
+              onPressed: () {
+                ref.read(playlistsProvider.notifier).toggleFavorite(track.id);
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showPlaylistPicker(BuildContext context, WidgetRef ref, Track track) {
+    final playlistState = ref.read(playlistsProvider);
+    final playlists = playlistState.maybeWhen(
+      data: (p) => p,
+      orElse: () => <Playlist>[],
+    );
+
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Text(
+                  'Añadir a Playlist',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ),
+              if (playlists.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: Text('No hay playlists creadas'),
+                ),
+              ...playlists.map(
+                (p) => ListTile(
+                  leading: const Icon(Icons.playlist_play_rounded),
+                  title: Text(p.name),
+                  onTap: () {
+                    ref
+                        .read(playlistsProvider.notifier)
+                        .addTrackToPlaylist(p.id!, track.id);
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Añadido a ${p.name}')),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

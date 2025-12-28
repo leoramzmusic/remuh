@@ -40,7 +40,13 @@ class LocalAudioSource {
   /// Obtiene los bytes de la carátula de una canción
   Future<List<int>?> getArtwork(int id) async {
     try {
-      return await _audioQuery.queryArtwork(id, ArtworkType.AUDIO);
+      return await _audioQuery.queryArtwork(
+        id,
+        ArtworkType.AUDIO,
+        size: 1000, // Máxima resolución razonable
+        format: ArtworkFormat.JPEG,
+        quality: 100,
+      );
     } catch (e) {
       Logger.error('Error fetching artwork bytes: $e');
       return null;
