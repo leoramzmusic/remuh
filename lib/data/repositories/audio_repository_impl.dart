@@ -1,6 +1,5 @@
-import 'dart:io';
 import 'package:audio_service/audio_service.dart' as as_lib;
-import 'package:path_provider/path_provider.dart';
+
 import '../../domain/entities/track.dart';
 import '../../domain/repositories/audio_repository.dart';
 import '../../services/audio_service.dart';
@@ -36,21 +35,10 @@ class AudioRepositoryImpl implements AudioRepository {
 
   @override
   Future<void> loadTrack(Track track) async {
-    // Intentar obtener la carátula antes de pasarla al handler (Isolate Principal)
-    Track trackWithArtwork = track;
-    try {
-      final bytes = await _localAudioSource.getArtwork(int.parse(track.id));
-      if (bytes != null) {
-        final tempDir = await getTemporaryDirectory();
-        final file = File('${tempDir.path}/artwork_${track.id}.jpg');
-        await file.writeAsBytes(bytes);
-        trackWithArtwork = track.copyWith(artworkPath: file.uri.toString());
-      }
-    } catch (e) {
-      // Ignorar error de carátula, seguir adelante
-    }
-
-    return _audioHandler.loadTrack(trackWithArtwork);
+    // Optimization: Skip artwork processing here.
+    // The UI now handles artwork lazily using OnAudioQuery directly on the track ID.
+    // Passing the raw track prevents blocking the main thread with File I/O and byte decoding.
+    return _audioHandler.loadTrack(track);
   }
 
   @override

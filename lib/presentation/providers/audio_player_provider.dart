@@ -328,67 +328,82 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
 
   /// Saltar a la siguiente pista
   Future<void> skipToNext() async {
-    if (state.queue.isEmpty) return;
+    try {
+      if (state.queue.isEmpty) return;
 
-    int nextIndex = -1;
+      int nextIndex = -1;
 
-    if (state.shuffleMode && state.shuffledIndices.isNotEmpty) {
-      final currentPos = state.shuffledIndices.indexOf(state.currentIndex);
-      if (currentPos != -1 && currentPos < state.shuffledIndices.length - 1) {
-        nextIndex = state.shuffledIndices[currentPos + 1];
-      } else if (state.repeatMode == AudioRepeatMode.all) {
-        nextIndex = state.shuffledIndices[0];
+      if (state.shuffleMode && state.shuffledIndices.isNotEmpty) {
+        final currentPos = state.shuffledIndices.indexOf(state.currentIndex);
+        if (currentPos != -1 && currentPos < state.shuffledIndices.length - 1) {
+          nextIndex = state.shuffledIndices[currentPos + 1];
+        } else if (state.repeatMode == AudioRepeatMode.all) {
+          nextIndex = state.shuffledIndices[0];
+        }
+      } else {
+        if (state.currentIndex < state.queue.length - 1) {
+          nextIndex = state.currentIndex + 1;
+        } else if (state.repeatMode == AudioRepeatMode.all) {
+          nextIndex = 0;
+        }
       }
-    } else {
-      if (state.currentIndex < state.queue.length - 1) {
-        nextIndex = state.currentIndex + 1;
-      } else if (state.repeatMode == AudioRepeatMode.all) {
-        nextIndex = 0;
+
+      if (nextIndex != -1) {
+        final nextTrack = state.queue[nextIndex];
+        Logger.info('Skipping to next: ${nextTrack.title}');
+
+        state = state.copyWith(currentIndex: nextIndex);
+        await _loadTrack(nextTrack);
+        state = state.copyWith(currentTrack: nextTrack);
+        await _playAudio();
       }
-    }
-
-    if (nextIndex != -1) {
-      final nextTrack = state.queue[nextIndex];
-      Logger.info('Skipping to next: ${nextTrack.title}');
-
-      state = state.copyWith(currentIndex: nextIndex);
-      await _loadTrack(nextTrack);
-      state = state.copyWith(currentTrack: nextTrack);
-      await _playAudio();
+    } catch (e) {
+      Logger.error('Error skipping to next', e);
+      // Don't set error state for connection aborted as it might be transient
+      if (!e.toString().contains('Connection aborted')) {
+        state = state.copyWith(error: e.toString());
+      }
     }
   }
 
   /// Saltar a la pista anterior
   Future<void> skipToPrevious() async {
-    if (state.queue.isEmpty) return;
+    try {
+      if (state.queue.isEmpty) return;
 
-    int prevIndex = -1;
+      int prevIndex = -1;
 
-    if (state.shuffleMode && state.shuffledIndices.isNotEmpty) {
-      final currentPos = state.shuffledIndices.indexOf(state.currentIndex);
-      if (currentPos > 0) {
-        prevIndex = state.shuffledIndices[currentPos - 1];
-      } else if (state.repeatMode == AudioRepeatMode.all) {
-        prevIndex = state.shuffledIndices.last;
+      if (state.shuffleMode && state.shuffledIndices.isNotEmpty) {
+        final currentPos = state.shuffledIndices.indexOf(state.currentIndex);
+        if (currentPos > 0) {
+          prevIndex = state.shuffledIndices[currentPos - 1];
+        } else if (state.repeatMode == AudioRepeatMode.all) {
+          prevIndex = state.shuffledIndices.last;
+        }
+      } else {
+        if (state.currentIndex > 0) {
+          prevIndex = state.currentIndex - 1;
+        } else if (state.repeatMode == AudioRepeatMode.all) {
+          prevIndex = state.queue.length - 1;
+        }
       }
-    } else {
-      if (state.currentIndex > 0) {
-        prevIndex = state.currentIndex - 1;
-      } else if (state.repeatMode == AudioRepeatMode.all) {
-        prevIndex = state.queue.length - 1;
+
+      if (prevIndex != -1) {
+        final prevTrack = state.queue[prevIndex];
+        Logger.info('Skipping to previous: ${prevTrack.title}');
+
+        state = state.copyWith(currentIndex: prevIndex);
+        await _loadTrack(prevTrack);
+        state = state.copyWith(currentTrack: prevTrack);
+        await _playAudio();
+      } else {
+        await seekTo(Duration.zero);
       }
-    }
-
-    if (prevIndex != -1) {
-      final prevTrack = state.queue[prevIndex];
-      Logger.info('Skipping to previous: ${prevTrack.title}');
-
-      state = state.copyWith(currentIndex: prevIndex);
-      await _loadTrack(prevTrack);
-      state = state.copyWith(currentTrack: prevTrack);
-      await _playAudio();
-    } else {
-      await seekTo(Duration.zero);
+    } catch (e) {
+      Logger.error('Error skipping to previous', e);
+      if (!e.toString().contains('Connection aborted')) {
+        state = state.copyWith(error: e.toString());
+      }
     }
   }
 
@@ -492,9 +507,16 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
 
   /// Cargar una pista específica de la cola sin empezar reproducción necesariamente
   Future<void> loadTrackInQueue(int index) async {
-    final track = state.queue[index];
-    await _loadTrack(track);
-    state = state.copyWith(currentTrack: track, currentIndex: index);
+    try {
+      final track = state.queue[index];
+      await _loadTrack(track);
+      state = state.copyWith(currentTrack: track, currentIndex: index);
+    } catch (e) {
+      Logger.error('Error loading track in queue', e);
+      if (!e.toString().contains('Connection aborted')) {
+        state = state.copyWith(error: e.toString());
+      }
+    }
   }
 }
 

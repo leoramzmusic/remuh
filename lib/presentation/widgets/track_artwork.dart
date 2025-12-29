@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:typed_data';
 import 'package:on_audio_query/on_audio_query.dart';
 import '../providers/customization_provider.dart';
 import '../../core/theme/icon_sets.dart';
@@ -22,32 +23,51 @@ class TrackArtwork extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final customization = ref.watch(customizationProvider);
     final icons = AppIconSet.fromStyle(customization.iconStyle);
-    final actualPlaceholder =
-        placeholderIcon ?? icons.lyrics; // Usar nota/musica si no se provee
+    final actualPlaceholder = placeholderIcon ?? icons.lyrics;
 
-    return QueryArtworkWidget(
-      id: int.parse(trackId),
-      type: ArtworkType.AUDIO,
-      artworkWidth: size,
-      artworkHeight: size,
-      // 'size' en on_audio_query controla la resolución del bitmap.
-      // 200 es el default (thumbnail). Para HD usamos 1000.
-      size: size > 100 ? 1000 : 200,
-      artworkQuality: size > 100 ? FilterQuality.high : FilterQuality.medium,
-      artworkBorder: BorderRadius.circular(borderRadius),
-      nullArtworkWidget: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(borderRadius),
-        ),
-        child: Icon(
-          actualPlaceholder,
-          size: size * 0.6,
-          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
-        ),
+    return FutureBuilder<Uint8List?>(
+      // Use queryArtwork directly to avoid unnecessary compression/resizing overhead
+      // unless specified.
+      future: OnAudioQuery().queryArtwork(
+        int.parse(trackId),
+        ArtworkType.AUDIO,
+        // If size > 200, we interpret it as a request for higher quality.
+        // The user suggested not passing size for max quality, but we might want
+        // to put a cap (e.g. 1000) to be safe, or just let it be if lazy loading works.
+        // Let's pass 1000 if size is large, else 200.
+        size: size > 200 ? 1000 : 200,
+        quality: size > 200 ? 100 : 50,
       ),
+      builder: (context, snapshot) {
+        if (snapshot.hasData && snapshot.data != null) {
+          return ClipRRect(
+            borderRadius: BorderRadius.circular(borderRadius),
+            child: Image.memory(
+              snapshot.data!,
+              width: size,
+              height: size,
+              fit: BoxFit.cover,
+              gaplessPlayback: true, // Avoids flickering and recreating objects
+            ),
+          );
+        } else {
+          return Container(
+            width: size,
+            height: size,
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(borderRadius),
+            ),
+            child: Icon(
+              actualPlaceholder,
+              size: size * 0.5,
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.3),
+            ),
+          );
+        }
+      },
     );
   }
 }

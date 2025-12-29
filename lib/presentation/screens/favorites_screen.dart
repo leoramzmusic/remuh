@@ -4,7 +4,7 @@ import '../providers/favorites_provider.dart';
 import '../providers/audio_player_provider.dart';
 import '../widgets/track_artwork.dart';
 
-import 'test_player_screen.dart'; // Correct import
+import 'player_screen.dart';
 
 /// Favorites screen with heart icon and play functionality
 class FavoritesScreen extends ConsumerWidget {
@@ -27,9 +27,7 @@ class FavoritesScreen extends ConsumerWidget {
                     .loadPlaylist(favoriteTracks, 0);
                 Navigator.push(
                   context,
-                  MaterialPageRoute(
-                    builder: (context) => const TestPlayerScreen(),
-                  ),
+                  MaterialPageRoute(builder: (context) => const PlayerScreen()),
                 );
               },
               tooltip: 'Reproducir todo',
@@ -125,8 +123,7 @@ class FavoritesScreen extends ConsumerWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) =>
-                            const TestPlayerScreen(), // Debugging
+                        builder: (context) => const PlayerScreen(), // Debugging
                       ),
                     );
                   },

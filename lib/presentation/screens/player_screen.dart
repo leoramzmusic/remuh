@@ -1,23 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:async';
 import '../../domain/entities/track.dart';
 import '../../domain/repositories/audio_repository.dart';
 
 import '../providers/audio_player_provider.dart';
-import '../widgets/play_pause_button.dart';
+import '../widgets/secondary_actions.dart';
 import '../widgets/progress_bar.dart';
 import '../widgets/track_artwork.dart';
 import 'queue_screen.dart';
 import '../widgets/lyrics_view.dart';
 import '../providers/library_view_model.dart';
-import '../providers/customization_provider.dart';
-import '../../core/theme/icon_sets.dart';
 import 'entity_detail_screen.dart';
-import '../../core/services/artwork_cache_service.dart';
 import '../../core/services/color_extraction_service.dart';
-import '../widgets/app_drawer.dart';
-import '../widgets/secondary_actions.dart';
-import 'package:share_plus/share_plus.dart';
 
 /// Pantalla principal del reproductor - Rediseñada
 class PlayerScreen extends ConsumerStatefulWidget {
@@ -29,22 +24,20 @@ class PlayerScreen extends ConsumerStatefulWidget {
 
 class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   late PageController _pageController;
+  Timer? _debounceTimer; // Timer for debouncing swipes
   bool _showLyrics = false;
-  final ArtworkCacheService _artworkCache = ArtworkCacheService();
   final ColorExtractionService _colorService = ColorExtractionService();
   Color? _backgroundColor; // Nullable to use theme color initially
 
   @override
   void initState() {
     super.initState();
-    _pageController = PageController();
+    final initialIndex = ref.read(audioPlayerProvider).currentIndex;
+    _pageController = PageController(
+      initialPage: initialIndex >= 0 ? initialIndex : 0,
+    );
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final initialIndex = ref.read(audioPlayerProvider).currentIndex;
-      if (initialIndex >= 0) {
-        _pageController.jumpToPage(initialIndex);
-      }
-
       // Initialize background color for current track
       final currentTrack = ref.read(audioPlayerProvider).currentTrack;
       if (currentTrack != null) {
@@ -56,6 +49,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   @override
   void dispose() {
     _pageController.dispose();
+    _debounceTimer?.cancel(); // Cancel timer
     super.dispose();
   }
 
@@ -72,13 +66,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final customization = ref.watch(customizationProvider);
-    final icons = AppIconSet.fromStyle(customization.iconStyle);
-
+    // Watch providers
     final currentTrack = ref.watch(
       audioPlayerProvider.select((s) => s.currentTrack),
     );
     final queue = ref.watch(audioPlayerProvider.select((s) => s.queue));
+    final isPlaying = ref.watch(audioPlayerProvider.select((s) => s.isPlaying));
     final hasNext = ref.watch(audioPlayerProvider.select((s) => s.hasNext));
     final hasPrevious = ref.watch(
       audioPlayerProvider.select((s) => s.hasPrevious),
@@ -93,403 +86,351 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       audioPlayerProvider.select((s) => s.shuffleMode),
     );
 
-    // Update background color when track changes
-    ref.listen(audioPlayerProvider.select((s) => s.currentTrack), (
-      previous,
-      next,
-    ) {
-      if (next != null && next.id != previous?.id) {
-        _updateBackgroundColor(next.id);
-      }
-    });
-
-    // Precache artwork
-    ref.listen(audioPlayerProvider.select((s) => s.currentIndex), (
-      previous,
-      next,
-    ) {
-      if (next >= 0 && queue.isNotEmpty) {
-        final trackIds = queue.map((t) => t.id).toList();
-        _artworkCache.precacheQueueArtwork(context, trackIds, next);
-      }
-    });
-
-    // Escuchar cambios de índice para animar el PageView
-    ref.listen(audioPlayerProvider.select((s) => s.currentIndex), (
-      previous,
-      next,
-    ) {
-      if (next >= 0 &&
-          _pageController.hasClients &&
-          _pageController.page?.round() != next) {
-        final diff = (next - (_pageController.page?.round() ?? 0)).abs();
-        if (diff > 1) {
-          _pageController.jumpToPage(next);
-        } else {
-          _pageController.animateToPage(
-            next,
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeInOut,
-          );
-        }
-      }
-    });
+    // Listeners for side effects (background color, artwork precache, page controller)
+    _setupListeners(queue);
 
     return Scaffold(
-      drawer: const AppDrawer(),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: const Text('REMUH'),
-        actions: [
-          IconButton(
-            icon: Icon(
-              _showLyrics ? Icons.lyrics : Icons.lyrics_outlined,
-              color: _showLyrics ? Colors.white : Colors.white70,
-            ),
-            onPressed: () {
-              setState(() {
-                _showLyrics = !_showLyrics;
-              });
-            },
-            tooltip: _showLyrics ? 'Ocultar letras' : 'Mostrar letras',
-          ),
-        ],
-      ),
-      extendBodyBehindAppBar: true,
-      body: Container(
-        color: const Color(0xFF2D2D2D),
-        child: SafeArea(
-          child: Stack(
+      backgroundColor: Colors.black, // Dark mode strict
+      body: Stack(
+        children: [
+          // Optional: Background gradient if desired, or stick to plain black as requested
+          // Container(color: Colors.black),
+          Column(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              if (_showLyrics)
-                _buildLyricsView()
-              else
-                _buildPlayerView(
+              _buildTopBar(context),
+              Expanded(
+                child: _buildMiddleSection(
                   context,
                   currentTrack,
                   queue,
                   currentIndex,
+                  isPlaying,
                   hasNext,
                   hasPrevious,
                   repeatMode,
                   shuffleMode,
-                  icons,
-                ),
-              // DEBUG: Test visibility
-              Positioned(
-                top: 100,
-                left: 20,
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  color: Colors.red,
-                  child: const Text(
-                    'DEBUG: PLAYER SCREEN',
-                    style: TextStyle(color: Colors.white, fontSize: 20),
-                  ),
                 ),
               ),
+              _buildBottomBar(context, currentTrack),
             ],
           ),
+
+          if (_showLyrics) const Positioned.fill(child: LyricsView()),
+        ],
+      ),
+    );
+  }
+
+  void _setupListeners(List<Track> queue) {
+    // Update background color
+    ref.listen(audioPlayerProvider.select((s) => s.currentTrack), (_, next) {
+      if (next != null) _updateBackgroundColor(next.id);
+    });
+
+    // Page controller sync
+    ref.listen(audioPlayerProvider.select((s) => s.currentIndex), (_, next) {
+      if (next >= 0 &&
+          _pageController.hasClients &&
+          _pageController.page?.round() != next) {
+        _pageController.jumpToPage(next);
+      }
+    });
+  }
+
+  // 1. TopBar
+  Widget _buildTopBar(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            IconButton(
+              icon: const Icon(
+                Icons.keyboard_arrow_down,
+                color: Colors.white,
+                size: 28,
+              ),
+              onPressed: () => Navigator.pop(context),
+            ),
+            IconButton(
+              icon: Icon(
+                _showLyrics ? Icons.lyrics : Icons.lyrics_outlined,
+                color: _showLyrics
+                    ? Theme.of(context).colorScheme.primary
+                    : Colors.white,
+                size: 24,
+              ),
+              onPressed: () => setState(() => _showLyrics = !_showLyrics),
+            ),
+            IconButton(
+              icon: const Icon(Icons.more_vert, color: Colors.white, size: 24),
+              onPressed: () {
+                // Show options menu (re-using SecondaryActions logic or custom sheet)
+                showModalBottomSheet(
+                  context: context,
+                  backgroundColor: const Color(0xFF2D2D2D),
+                  builder: (_) =>
+                      const SecondaryActions(), // Re-using existing actions widget as a sheet
+                );
+              },
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildLyricsView() {
-    return GestureDetector(
-      onTap: () => setState(() => _showLyrics = false),
-      child: const LyricsView(),
-    );
-  }
-
-  Widget _buildPlayerView(
+  // 2. Middle Section
+  Widget _buildMiddleSection(
     BuildContext context,
     Track? currentTrack,
     List<Track> queue,
     int currentIndex,
+    bool isPlaying,
     bool hasNext,
     bool hasPrevious,
     AudioRepeatMode repeatMode,
     bool shuffleMode,
-    AppIconSet icons,
   ) {
     return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        // Secondary actions at top
-        const SecondaryActions(),
-
-        const Spacer(flex: 1),
-
-        // Album cover - Centered and large
-        Center(
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 400),
-            transitionBuilder: (child, animation) {
-              return FadeTransition(
-                opacity: animation,
-                child: ScaleTransition(scale: animation, child: child),
-              );
-            },
+        // Album Art
+        Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: SizedBox(
+            height: MediaQuery.of(context).size.width * 0.8, // Responsive size
+            width: MediaQuery.of(context).size.width * 0.8,
             child: _buildAlbumCover(currentTrack, queue, currentIndex),
           ),
         ),
 
         const SizedBox(height: 24),
 
-        // Track counter
-        if (queue.isNotEmpty)
-          Text(
-            '${currentIndex + 1} / ${queue.length}',
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.white.withValues(alpha: 0.5),
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-
-        const SizedBox(height: 12),
-
-        // Track information - Hierarchical
+        // Song Info
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
+          padding: const EdgeInsets.symmetric(horizontal: 32.0),
           child: Column(
             children: [
-              // Title
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 300),
-                child: Text(
-                  currentTrack?.title ?? 'Sin pista',
-                  key: ValueKey(currentTrack?.id ?? 'none'),
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+              Text(
+                currentTrack?.title ?? 'No Track Playing',
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
                 ),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 8),
-              // Artist
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 300),
-                child: Text(
-                  currentTrack?.artist ?? 'Artista desconocido',
-                  key: ValueKey(
-                    (currentTrack?.artist ?? 'unknown') +
-                        (currentTrack?.id ?? ''),
-                  ),
-                  style: TextStyle(fontSize: 16, color: Colors.grey[300]),
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
+              Text(
+                currentTrack?.artist ?? 'Unknown Artist',
+                style: const TextStyle(fontSize: 18, color: Colors.white60),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 4),
-              // Album
-              if (currentTrack?.album != null)
-                Text(
-                  currentTrack!.album!,
-                  style: TextStyle(fontSize: 14, color: Colors.grey[500]),
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
             ],
           ),
         ),
 
         const SizedBox(height: 32),
 
-        // Progress bar
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 24),
-          child: ProgressBar(),
-        ),
-
-        const SizedBox(height: 32),
-
-        // Main controls - Redesigned
+        // Playback Controls
         Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            // Shuffle
             IconButton(
+              icon: Icon(
+                Icons.shuffle,
+                color: shuffleMode
+                    ? Theme.of(context).colorScheme.primary
+                    : Colors.white54,
+              ),
               onPressed: () =>
                   ref.read(audioPlayerProvider.notifier).toggleShuffle(),
-              icon: Icon(
-                icons.shuffle,
-                color: shuffleMode ? Colors.white : Colors.white54,
-              ),
-              iconSize: 24,
             ),
-            const SizedBox(width: 16),
-            // Previous
             IconButton(
+              icon: const Icon(
+                Icons.skip_previous,
+                color: Colors.white,
+                size: 36,
+              ),
               onPressed: hasPrevious
                   ? () =>
                         ref.read(audioPlayerProvider.notifier).skipToPrevious()
                   : null,
-              icon: Icon(icons.skipPrevious),
-              iconSize: 32,
-              color: Colors.white,
             ),
-            const SizedBox(width: 24),
-            // Play/Pause - Larger
             Container(
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
+                color: Colors.white,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.3),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
+                    color: Colors.white.withOpacity(0.2),
+                    blurRadius: 10,
+                    spreadRadius: 2,
                   ),
                 ],
               ),
-              child: const PlayPauseButton(size: 48),
+              child: IconButton(
+                icon: Icon(
+                  isPlaying ? Icons.pause : Icons.play_arrow,
+                  color: Colors.black,
+                  size: 40,
+                ),
+                onPressed: () =>
+                    ref.read(audioPlayerProvider.notifier).togglePlayPause(),
+                padding: const EdgeInsets.all(16),
+              ),
             ),
-            const SizedBox(width: 24),
-            // Next
             IconButton(
+              icon: const Icon(Icons.skip_next, color: Colors.white, size: 36),
               onPressed: hasNext
                   ? () => ref.read(audioPlayerProvider.notifier).skipToNext()
                   : null,
-              icon: Icon(icons.skipNext),
-              iconSize: 32,
-              color: Colors.white,
             ),
-            const SizedBox(width: 16),
-            // Repeat
             IconButton(
-              onPressed: () =>
-                  ref.read(audioPlayerProvider.notifier).toggleRepeatMode(),
               icon: Icon(
                 repeatMode == AudioRepeatMode.one
-                    ? icons.repeatOne
-                    : icons.repeat,
+                    ? Icons.repeat_one
+                    : Icons.repeat,
                 color: repeatMode != AudioRepeatMode.off
-                    ? Colors.white
+                    ? Theme.of(context).colorScheme.primary
                     : Colors.white54,
               ),
-              iconSize: 24,
+              onPressed: () =>
+                  ref.read(audioPlayerProvider.notifier).toggleRepeatMode(),
             ),
           ],
         ),
 
         const SizedBox(height: 24),
 
-        // Bottom actions
-        Row(
+        // Progress Bar
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 24.0),
+          child: ProgressBar(),
+        ),
+      ],
+    );
+  }
+
+  // 3. BottomBar
+  Widget _buildBottomBar(BuildContext context, Track? currentTrack) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 16.0, top: 8.0),
+        child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
             IconButton(
-              icon: const Icon(Icons.share_rounded, color: Colors.white70),
+              icon: const Icon(Icons.album, color: Colors.white),
               onPressed: () {
-                if (currentTrack != null) {
-                  Share.share(
-                    '🎵 Estoy escuchando: ${currentTrack.title}\n'
-                    '🎤 Artista: ${currentTrack.artist ?? "Desconocido"}\n'
-                    '💿 Álbum: ${currentTrack.album ?? "Desconocido"}',
-                    subject: 'Compartir canción desde REMUH',
-                  );
-                }
-              },
-              tooltip: 'Compartir',
-            ),
-            IconButton(
-              icon: Icon(icons.queue, color: Colors.white70),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const QueueScreen()),
-                );
-              },
-              tooltip: 'Ver cola',
-            ),
-            IconButton(
-              icon: Icon(icons.album, color: Colors.white70),
-              onPressed: () {
-                if (currentTrack != null) {
+                if (currentTrack?.album != null) {
                   final albumTracks = ref
                       .read(libraryViewModelProvider.notifier)
-                      .getTracksByAlbum(currentTrack.album ?? 'Desconocido');
+                      .getTracksByAlbum(currentTrack!.album!);
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => EntityDetailScreen(
-                        title: currentTrack.album ?? 'Álbum',
+                      builder: (_) => EntityDetailScreen(
+                        title: currentTrack.album!,
                         tracks: albumTracks,
                       ),
                     ),
                   );
                 }
               },
-              tooltip: 'Ver álbum',
+              tooltip: 'Album Songs',
+            ),
+            IconButton(
+              icon: const Icon(Icons.queue_music, color: Colors.white),
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const QueueScreen()),
+              ),
+              tooltip: 'Queue',
+            ),
+            IconButton(
+              icon: const Icon(Icons.person, color: Colors.white),
+              onPressed: () {
+                if (currentTrack?.artist != null) {
+                  final artistTracks = ref
+                      .read(libraryViewModelProvider.notifier)
+                      .getTracksByArtist(currentTrack!.artist!);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => EntityDetailScreen(
+                        title: currentTrack.artist!,
+                        tracks: artistTracks,
+                      ),
+                    ),
+                  );
+                }
+              },
+              tooltip: 'Artist Songs',
             ),
           ],
         ),
-
-        const Spacer(flex: 1),
-      ],
+      ),
     );
   }
 
   Widget _buildAlbumCover(Track? track, List<Track> queue, int currentIndex) {
-    if (track == null || queue.isEmpty) {
-      return _buildPlaceholderCover();
-    }
+    if (track == null) return _buildPlaceholderCover();
 
-    return Container(
-      key: ValueKey(track.id),
-      height: 280,
-      width: 280,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.45),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
+    // Using PageView for swipe support which users expect
+    return PageView.builder(
+      controller: _pageController,
+      onPageChanged: (index) {
+        // Debounce the audio loading to prevent "Connection aborted" crashes
+        _debounceTimer?.cancel();
+        _debounceTimer = Timer(const Duration(milliseconds: 500), () {
+          if (mounted) {
+            ref.read(audioPlayerProvider.notifier).loadTrackInQueue(index);
+          }
+        });
+      },
+      itemCount: queue.length,
+      itemBuilder: (context, index) {
+        // Optimization: Only render heavy artwork for current, next, and previous items
+        final bool shouldRender = (index - currentIndex).abs() <= 1;
+
+        if (!shouldRender) {
+          return const SizedBox();
+        }
+
+        final itemTrack = queue[index];
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: TrackArtwork(
+              trackId: itemTrack.id,
+              size:
+                  300, // Reduced from potentially larger sizes, matches cache optimization
+              borderRadius: 16,
+            ),
           ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: GestureDetector(
-          onHorizontalDragEnd: (details) {
-            if (details.primaryVelocity == null) return;
-            if (details.primaryVelocity! > 500) {
-              ref.read(audioPlayerProvider.notifier).skipToNext();
-            } else if (details.primaryVelocity! < -500) {
-              ref.read(audioPlayerProvider.notifier).skipToPrevious();
-            }
-          },
-          child: TrackArtwork(trackId: track.id, size: 280, borderRadius: 12),
-        ),
-      ),
+        );
+      },
     );
   }
 
   Widget _buildPlaceholderCover() {
     return Container(
-      height: 280,
-      width: 280,
       decoration: BoxDecoration(
-        color: Colors.grey[800],
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.45),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
-          ),
-        ],
+        color: Colors.grey[900],
+        borderRadius: BorderRadius.circular(16),
       ),
       child: const Center(
-        child: Icon(Icons.music_note_rounded, size: 100, color: Colors.white24),
+        child: Icon(Icons.music_note, color: Colors.white24, size: 80),
       ),
     );
   }
