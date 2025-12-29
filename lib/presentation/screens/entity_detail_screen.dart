@@ -38,7 +38,7 @@ class EntityDetailScreen extends ConsumerWidget {
                             Icons.shuffle,
                             size: 28,
                             color: isShuffleActive
-                                ? Theme.of(context).colorScheme.secondary
+                                ? Colors.orangeAccent
                                 : Colors.white,
                           );
                         },

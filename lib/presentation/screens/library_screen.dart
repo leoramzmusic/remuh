@@ -49,15 +49,26 @@ class LibraryScreen extends ConsumerWidget {
       length: 5,
       child: Consumer(
         builder: (context, ref, _) {
-          final customization = ref.watch(customizationProvider);
-          final icons = AppIconSet.fromStyle(customization.iconStyle);
+          final iconStyle = ref.watch(
+            customizationProvider.select((s) => s.iconStyle),
+          );
+          final icons = AppIconSet.fromStyle(iconStyle);
 
           final isGrid = ref.watch(isGridViewProvider);
-          final sortOption = ref.watch(sortOptionProvider);
 
           return Scaffold(
             appBar: AppBar(
-              title: const Text('Biblioteca'),
+              leading: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: GestureDetector(
+                  onTap: () => _showAboutDialog(context),
+                  child: Image.asset(
+                    'assets/images/remuh_logo.png',
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
+              title: const Text('REMUH'),
               actions: [
                 IconButton(
                   icon: Icon(
@@ -171,9 +182,7 @@ class LibraryScreen extends ConsumerWidget {
                   return Icon(
                     Icons.shuffle,
                     size: 28,
-                    color: isShuffleActive
-                        ? Theme.of(context).colorScheme.secondary
-                        : Colors.white,
+                    color: isShuffleActive ? Colors.orangeAccent : Colors.white,
                   );
                 },
               ),
@@ -233,8 +242,9 @@ class LibraryScreen extends ConsumerWidget {
     AppIconSet icons,
   ) {
     final artists = ref.read(libraryViewModelProvider.notifier).getArtists();
-    if (artists.isEmpty && !state.isScanning)
+    if (artists.isEmpty && !state.isScanning) {
       return _buildEmptyState(ref, icons);
+    }
 
     return ListView.builder(
       itemCount: artists.length,
@@ -267,8 +277,9 @@ class LibraryScreen extends ConsumerWidget {
     AppIconSet icons,
   ) {
     final albums = ref.read(libraryViewModelProvider.notifier).getAlbums();
-    if (albums.isEmpty && !state.isScanning)
+    if (albums.isEmpty && !state.isScanning) {
       return _buildEmptyState(ref, icons);
+    }
 
     return ListView.builder(
       itemCount: albums.length,
@@ -350,6 +361,24 @@ class LibraryScreen extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+
+  void _showAboutDialog(BuildContext context) {
+    showAboutDialog(
+      context: context,
+      applicationName: 'REMUH',
+      applicationVersion: '1.0.0',
+      applicationIcon: SizedBox(
+        width: 60,
+        height: 60,
+        child: Image.asset('assets/images/remuh_logo.png'),
+      ),
+      children: [
+        const Text(
+          'Reproductor de música minimalista y escalable que prioriza la identidad y la experiencia del usuario.',
+        ),
+      ],
     );
   }
 }

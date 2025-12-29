@@ -104,7 +104,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             ),
           ),
           // Subtle overlay to ensure text readability if needed, or rely on dark colors
-          Container(color: Colors.black.withOpacity(0.3)),
+          Container(color: Colors.black.withValues(alpha: 0.3)),
           Column(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -126,7 +126,52 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             ],
           ),
 
-          if (_showLyrics) const Positioned.fill(child: LyricsView()),
+          // Lyrics Layer (Draggable Sheet)
+          if (_showLyrics)
+            TweenAnimationBuilder<double>(
+              duration: const Duration(milliseconds: 400),
+              tween: Tween(begin: 0.0, end: 1.0),
+              curve: Curves.easeOut,
+              builder: (context, value, child) {
+                return Opacity(opacity: value, child: child);
+              },
+              child: DraggableScrollableSheet(
+                initialChildSize: 0.7,
+                minChildSize: 0.4,
+                maxChildSize: 0.95,
+                builder: (context, scrollController) {
+                  return Container(
+                    decoration: const BoxDecoration(
+                      borderRadius: BorderRadius.vertical(
+                        top: Radius.circular(32),
+                      ),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: Stack(
+                      children: [
+                        LyricsView(
+                          scrollController: scrollController,
+                          opacity: 0.7, // Higher opacity for sheet mode
+                        ),
+                        // Handle (Pill)
+                        Align(
+                          alignment: Alignment.topCenter,
+                          child: Container(
+                            margin: const EdgeInsets.only(top: 12),
+                            width: 36,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: Colors.white24,
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
         ],
       ),
     );
@@ -135,7 +180,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   void _setupListeners(List<Track> queue) {
     // Update background color
     ref.listen(audioPlayerProvider.select((s) => s.currentTrack), (_, next) {
-      if (next != null) _updateBackgroundColor(next.id);
+      if (next != null) {
+        _updateBackgroundColor(next.id);
+      }
     });
 
     // Page controller sync
@@ -164,27 +211,33 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               ),
               onPressed: () => Navigator.pop(context),
             ),
-            IconButton(
-              icon: Icon(
-                _showLyrics ? Icons.lyrics : Icons.lyrics_outlined,
-                color: _showLyrics
-                    ? Theme.of(context).colorScheme.primary
-                    : Colors.white,
-                size: 24,
-              ),
-              onPressed: () => setState(() => _showLyrics = !_showLyrics),
-            ),
-            IconButton(
-              icon: const Icon(Icons.more_vert, color: Colors.white, size: 24),
-              onPressed: () {
-                // Show options menu (re-using SecondaryActions logic or custom sheet)
-                showModalBottomSheet(
-                  context: context,
-                  backgroundColor: const Color(0xFF2D2D2D),
-                  builder: (_) =>
-                      const SecondaryActions(), // Re-using existing actions widget as a sheet
-                );
-              },
+            Row(
+              children: [
+                IconButton(
+                  icon: Icon(
+                    _showLyrics ? Icons.lyrics : Icons.lyrics_outlined,
+                    color: _showLyrics
+                        ? Theme.of(context).colorScheme.primary
+                        : Colors.white,
+                    size: 24,
+                  ),
+                  onPressed: () => setState(() => _showLyrics = !_showLyrics),
+                ),
+                IconButton(
+                  icon: const Icon(
+                    Icons.more_vert,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                  onPressed: () {
+                    showModalBottomSheet(
+                      context: context,
+                      backgroundColor: const Color(0xFF2D2D2D),
+                      builder: (_) => const SecondaryActions(),
+                    );
+                  },
+                ),
+              ],
             ),
           ],
         ),
@@ -279,7 +332,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 color: Colors.white,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.white.withOpacity(0.2),
+                    color: Colors.white.withValues(alpha: 0.2),
                     blurRadius: 10,
                     spreadRadius: 2,
                   ),

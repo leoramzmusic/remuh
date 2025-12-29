@@ -4,37 +4,49 @@ import '../providers/lyrics_provider.dart';
 import '../providers/audio_player_provider.dart';
 
 class LyricsView extends ConsumerStatefulWidget {
-  const LyricsView({super.key});
+  final ScrollController? scrollController;
+  final double opacity;
+
+  const LyricsView({super.key, this.scrollController, this.opacity = 0.4});
 
   @override
   ConsumerState<LyricsView> createState() => _LyricsViewState();
 }
 
 class _LyricsViewState extends ConsumerState<LyricsView> {
-  final ScrollController _scrollController = ScrollController();
-  static const double _rowHeight = 60.0;
+  late ScrollController _internalScrollController;
+  static const double _rowHeight = 64.0;
+
+  ScrollController get _activeScrollController =>
+      widget.scrollController ?? _internalScrollController;
+
+  @override
+  void initState() {
+    super.initState();
+    _internalScrollController = ScrollController();
+  }
 
   @override
   void dispose() {
-    _scrollController.dispose();
+    _internalScrollController.dispose();
     super.dispose();
   }
 
   void _scrollToIndex(int index) {
-    if (!_scrollController.hasClients || index < 0) {
+    if (!_activeScrollController.hasClients || index < 0) {
       return;
     }
 
     final screenHeight = MediaQuery.of(context).size.height;
-    final centerOffset =
-        (screenHeight / 2) - (_rowHeight / 2) - 100; // Ajuste para el centro
+    // Aim for upper-middle part of the screen for active line
+    final centerOffset = (screenHeight * 0.35) - (_rowHeight / 2);
 
     final targetOffset = (index * _rowHeight) - centerOffset;
 
-    _scrollController.animateTo(
-      targetOffset.clamp(0, _scrollController.position.maxScrollExtent),
+    _activeScrollController.animateTo(
+      targetOffset.clamp(0, _activeScrollController.position.maxScrollExtent),
       duration: const Duration(milliseconds: 600),
-      curve: Curves.easeInOutSine,
+      curve: Curves.easeOutCubic,
     );
   }
 
@@ -50,24 +62,17 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
       }
     });
 
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: widget.opacity),
+      ),
+      child: _buildContent(lyricsState, activeIndex),
+    );
+  }
+
+  Widget _buildContent(LyricsState lyricsState, int activeIndex) {
     if (lyricsState.isLoading) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const CircularProgressIndicator(),
-            const SizedBox(height: 16),
-            Text(
-              'Buscando letras online...',
-              style: TextStyle(
-                color: Theme.of(
-                  context,
-                ).colorScheme.onSurface.withValues(alpha: 0.6),
-              ),
-            ),
-          ],
-        ),
-      );
+      return const Center(child: CircularProgressIndicator());
     }
 
     if (lyricsState.lines.isEmpty) {
@@ -75,95 +80,56 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 40),
           child: Text(
-            'No hay letras disponibles local ni online para esta canción',
+            lyricsState.error ?? 'No hay letras disponibles',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Theme.of(
-                context,
-              ).colorScheme.onSurface.withValues(alpha: 0.6),
-            ),
+            style: const TextStyle(color: Colors.white70),
           ),
         ),
       );
     }
 
-    return Column(
-      children: [
-        if (lyricsState.isOnline)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(
-                color: Theme.of(
-                  context,
-                ).colorScheme.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.cloud_download_outlined,
-                    size: 14,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Letra obtenida de Genius (Estática)',
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: Theme.of(context).colorScheme.primary,
-                      fontWeight: FontWeight.bold,
-                    ),
+    return ListView.builder(
+      controller: _activeScrollController,
+      itemCount: lyricsState.lines.length,
+      padding: EdgeInsets.symmetric(
+        vertical: MediaQuery.of(context).size.height * 0.4,
+      ),
+      itemBuilder: (context, index) {
+        final line = lyricsState.lines[index];
+        final isActive = index == activeIndex;
+
+        return GestureDetector(
+          onTap: lyricsState.isOnline
+              ? null
+              : () {
+                  ref.read(audioPlayerProvider.notifier).seekTo(line.startTime);
+                },
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            height: _rowHeight,
+            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Text(
+              line.text,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: isActive ? 26 : 20,
+                fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
+                color: isActive
+                    ? Theme.of(context).colorScheme.primary
+                    : Colors.white.withValues(alpha: 0.5),
+                shadows: [
+                  Shadow(
+                    offset: const Offset(0, 1),
+                    blurRadius: 4.0,
+                    color: Colors.black.withValues(alpha: isActive ? 0.8 : 0.5),
                   ),
                 ],
               ),
             ),
           ),
-        Expanded(
-          child: ListView.builder(
-            controller: _scrollController,
-            itemCount: lyricsState.lines.length,
-            padding: const EdgeInsets.symmetric(vertical: 200),
-            itemBuilder: (context, index) {
-              final line = lyricsState.lines[index];
-              final isActive = index == activeIndex;
-
-              return GestureDetector(
-                onTap: lyricsState.isOnline
-                    ? null
-                    : () {
-                        // Ir a este tiempo en la canción
-                        ref
-                            .read(audioPlayerProvider.notifier)
-                            .seekTo(line.startTime);
-                      },
-                child: Container(
-                  height: _rowHeight,
-                  alignment: Alignment.center,
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Text(
-                    line.text,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: isActive ? 24 : 18,
-                      fontWeight: isActive
-                          ? FontWeight.bold
-                          : FontWeight.normal,
-                      color: isActive
-                          ? Theme.of(context).colorScheme.primary
-                          : Theme.of(
-                              context,
-                            ).colorScheme.onSurface.withValues(alpha: 0.5),
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      ],
+        );
+      },
     );
   }
 }
