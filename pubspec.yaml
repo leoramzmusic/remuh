@@ -53,6 +53,7 @@ dependencies:
   path: ^1.9.1
   shared_preferences: ^2.5.4
   palette_generator: ^0.3.3+7
+  http: ^1.2.2
 
 dev_dependencies:
   flutter_test:

@@ -4,6 +4,7 @@ import 'package:audio_service/audio_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/utils/logger.dart';
 import 'presentation/providers/audio_player_provider.dart';
+import 'presentation/providers/customization_provider.dart';
 import 'presentation/screens/player_screen.dart';
 import 'services/audio_service.dart';
 
@@ -29,18 +30,21 @@ void main() async {
   );
 }
 
-class RemuhApp extends StatelessWidget {
+class RemuhApp extends ConsumerWidget {
   const RemuhApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final customization = ref.watch(customizationProvider);
+    final accentColor = customization.accentColor;
+
     return MaterialApp(
       title: 'REMUH',
       debugShowCheckedModeBanner: false,
 
-      // Temas
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
+      // Temas dinámicos
+      theme: AppTheme.getLightTheme(accentColor),
+      darkTheme: AppTheme.getDarkTheme(accentColor),
       themeMode: ThemeMode.system, // Seguir configuración del sistema
       // Pantalla inicial
       home: const PlayerScreen(),

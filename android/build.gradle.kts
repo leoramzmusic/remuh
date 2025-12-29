@@ -41,9 +41,9 @@ subprojects {
         
         // Fix Kotlin JVM Target
         project.tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile::class.java).configureEach {
-             compilerOptions {
+            compilerOptions {
                 jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
-             }
+            }
         }
     }
 }

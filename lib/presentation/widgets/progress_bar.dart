@@ -31,17 +31,17 @@ class ProgressBar extends ConsumerWidget {
       children: [
         SliderTheme(
           data: SliderTheme.of(context).copyWith(
-            trackHeight: 4.0,
+            trackHeight: 2.0, // Más fino estilo Spotify
             thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6.0),
             overlayShape: const RoundSliderOverlayShape(overlayRadius: 14.0),
             activeTrackColor: Theme.of(context).colorScheme.primary,
             inactiveTrackColor: Theme.of(
               context,
-            ).colorScheme.surfaceContainerHighest,
+            ).colorScheme.onSurface.withValues(alpha: 0.1), // Más sutil
             thumbColor: Theme.of(context).colorScheme.primary,
             overlayColor: Theme.of(
               context,
-            ).colorScheme.primary.withValues(alpha: 0.2),
+            ).colorScheme.primary.withValues(alpha: 0.15),
           ),
           child: Slider(
             value: duration.inMilliseconds > 0
@@ -60,7 +60,8 @@ class ProgressBar extends ConsumerWidget {
         ),
         Padding(
           padding: const EdgeInsets.symmetric(
-            horizontal: AppConstants.defaultPadding,
+            horizontal:
+                AppConstants.defaultPadding + 8, // Un poco más de margen
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -68,17 +69,19 @@ class ProgressBar extends ConsumerWidget {
               Text(
                 _formatDuration(position),
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  fontSize: 11, // Más pequeño
                   color: Theme.of(
                     context,
-                  ).colorScheme.onSurface.withValues(alpha: 0.6),
+                  ).colorScheme.onSurface.withValues(alpha: 0.5),
                 ),
               ),
               Text(
                 _formatDuration(duration),
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  fontSize: 11,
                   color: Theme.of(
                     context,
-                  ).colorScheme.onSurface.withValues(alpha: 0.6),
+                  ).colorScheme.onSurface.withValues(alpha: 0.5),
                 ),
               ),
             ],

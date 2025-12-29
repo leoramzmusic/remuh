@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/app_constants.dart';
 import '../providers/audio_player_provider.dart';
+import '../providers/customization_provider.dart';
+import '../../core/theme/icon_sets.dart';
 
 /// Botón de play/pause con animación
 class PlayPauseButton extends ConsumerWidget {
@@ -17,6 +19,8 @@ class PlayPauseButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isPlaying = ref.watch(audioPlayerProvider.select((s) => s.isPlaying));
+    final customization = ref.watch(customizationProvider);
+    final icons = AppIconSet.fromStyle(customization.iconStyle);
 
     return IconButton(
       onPressed:
@@ -30,7 +34,7 @@ class PlayPauseButton extends ConsumerWidget {
           return ScaleTransition(scale: animation, child: child);
         },
         child: Icon(
-          isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+          isPlaying ? icons.pause : icons.play,
           key: ValueKey(isPlaying),
           size: size,
         ),

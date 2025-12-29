@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/app_constants.dart';
 import '../providers/audio_player_provider.dart';
+import '../providers/customization_provider.dart';
+import '../../core/theme/icon_sets.dart';
 import '../widgets/track_artwork.dart';
 
 class QueueScreen extends ConsumerWidget {
@@ -9,6 +11,9 @@ class QueueScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final customization = ref.watch(customizationProvider);
+    final icons = AppIconSet.fromStyle(customization.iconStyle);
+
     final queue = ref.watch(audioPlayerProvider.select((s) => s.queue));
     final currentIndex = ref.watch(
       audioPlayerProvider.select((s) => s.currentIndex),
@@ -38,9 +43,7 @@ class QueueScreen extends ConsumerWidget {
                 trackId: track.id,
                 size: 40,
                 borderRadius: 4,
-                placeholderIcon: isCurrent
-                    ? Icons.play_arrow_rounded
-                    : Icons.music_note_rounded,
+                placeholderIcon: isCurrent ? icons.play : icons.lyrics,
               ),
             ),
             title: Text(

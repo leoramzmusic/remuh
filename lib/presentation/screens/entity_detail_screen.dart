@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/entities/track.dart';
 import '../providers/audio_player_provider.dart';
+import '../providers/customization_provider.dart';
+import '../../core/theme/icon_sets.dart';
 import '../widgets/track_artwork.dart';
 
 class EntityDetailScreen extends ConsumerWidget {
@@ -16,14 +18,41 @@ class EntityDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final customization = ref.watch(customizationProvider);
+    final icons = AppIconSet.fromStyle(customization.iconStyle);
+
     return Scaffold(
       appBar: AppBar(title: Text(title)),
       body: tracks.isEmpty
           ? const Center(child: Text('No hay canciones'))
           : ListView.builder(
-              itemCount: tracks.length,
+              itemCount: tracks.length + 1,
               itemBuilder: (context, index) {
-                final track = tracks[index];
+                if (index == 0) {
+                  return ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: Theme.of(
+                        context,
+                      ).colorScheme.primaryContainer,
+                      child: Icon(
+                        icons.shuffle,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                    title: const Text(
+                      'Modo Aleatorio',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Text('${tracks.length} canciones'),
+                    onTap: () {
+                      ref
+                          .read(audioPlayerProvider.notifier)
+                          .loadPlaylist(tracks, 0, startShuffled: true);
+                    },
+                  );
+                }
+
+                final track = tracks[index - 1];
                 return ListTile(
                   leading: Hero(
                     tag: 'artwork_${track.id}',
@@ -46,22 +75,11 @@ class EntityDetailScreen extends ConsumerWidget {
                   onTap: () {
                     ref
                         .read(audioPlayerProvider.notifier)
-                        .loadPlaylist(tracks, index);
-                    Navigator.pop(context);
+                        .loadPlaylist(tracks, index - 1);
                   },
                 );
               },
             ),
-      floatingActionButton: tracks.isNotEmpty
-          ? FloatingActionButton.extended(
-              onPressed: () {
-                ref.read(audioPlayerProvider.notifier).loadPlaylist(tracks, 0);
-                Navigator.pop(context);
-              },
-              icon: const Icon(Icons.play_arrow_rounded),
-              label: const Text('Reproducir Todo'),
-            )
-          : null,
     );
   }
 }

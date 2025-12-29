@@ -1,22 +1,30 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:on_audio_query/on_audio_query.dart';
+import '../providers/customization_provider.dart';
+import '../../core/theme/icon_sets.dart';
 
-class TrackArtwork extends StatelessWidget {
+class TrackArtwork extends ConsumerWidget {
   final String trackId;
   final double size;
   final double borderRadius;
-  final IconData placeholderIcon;
+  final IconData? placeholderIcon;
 
   const TrackArtwork({
     super.key,
     required this.trackId,
     this.size = 50,
     this.borderRadius = 8,
-    this.placeholderIcon = Icons.music_note_rounded,
+    this.placeholderIcon,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final customization = ref.watch(customizationProvider);
+    final icons = AppIconSet.fromStyle(customization.iconStyle);
+    final actualPlaceholder =
+        placeholderIcon ?? icons.lyrics; // Usar nota/musica si no se provee
+
     return QueryArtworkWidget(
       id: int.parse(trackId),
       type: ArtworkType.AUDIO,
@@ -35,7 +43,7 @@ class TrackArtwork extends StatelessWidget {
           borderRadius: BorderRadius.circular(borderRadius),
         ),
         child: Icon(
-          placeholderIcon,
+          actualPlaceholder,
           size: size * 0.6,
           color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
         ),

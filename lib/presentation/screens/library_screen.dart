@@ -5,6 +5,8 @@ import '../providers/library_view_model.dart';
 import '../providers/playlists_provider.dart';
 import '../widgets/track_artwork.dart';
 import '../../domain/entities/playlist.dart';
+import '../providers/customization_provider.dart';
+import '../../core/theme/icon_sets.dart';
 import 'settings_screen.dart';
 import 'entity_detail_screen.dart';
 
@@ -41,42 +43,49 @@ class LibraryScreen extends ConsumerWidget {
 
     return DefaultTabController(
       length: 3,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Mi Música'),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.settings_rounded),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const SettingsScreen(),
-                  ),
-                );
-              },
-              tooltip: 'Ajustes',
+      child: Consumer(
+        builder: (context, ref, _) {
+          final customization = ref.watch(customizationProvider);
+          final icons = AppIconSet.fromStyle(customization.iconStyle);
+
+          return Scaffold(
+            appBar: AppBar(
+              title: const Text('Mi Música'),
+              actions: [
+                IconButton(
+                  icon: Icon(icons.settings),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const SettingsScreen(),
+                      ),
+                    );
+                  },
+                  tooltip: 'Ajustes',
+                ),
+              ],
+              bottom: const TabBar(
+                tabs: [
+                  Tab(text: 'Canciones'),
+                  Tab(text: 'Artistas'),
+                  Tab(text: 'Álbumes'),
+                ],
+              ),
             ),
-          ],
-          bottom: const TabBar(
-            tabs: [
-              Tab(text: 'Canciones'),
-              Tab(text: 'Artistas'),
-              Tab(text: 'Álbumes'),
-            ],
-          ),
-        ),
-        body: RefreshIndicator(
-          onRefresh: () =>
-              ref.read(libraryViewModelProvider.notifier).scanLibrary(),
-          child: TabBarView(
-            children: [
-              _buildTracksList(context, ref, libraryState),
-              _buildArtistsList(context, ref, libraryState),
-              _buildAlbumsList(context, ref, libraryState),
-            ],
-          ),
-        ),
+            body: RefreshIndicator(
+              onRefresh: () =>
+                  ref.read(libraryViewModelProvider.notifier).scanLibrary(),
+              child: TabBarView(
+                children: [
+                  _buildTracksList(context, ref, libraryState, icons),
+                  _buildArtistsList(context, ref, libraryState, icons),
+                  _buildAlbumsList(context, ref, libraryState, icons),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -85,9 +94,10 @@ class LibraryScreen extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     LibraryState state,
+    AppIconSet icons,
   ) {
     if (state.tracks.isEmpty && !state.isScanning) {
-      return _buildEmptyState(ref);
+      return _buildEmptyState(ref, icons);
     }
     if (state.isScanning && state.tracks.isEmpty) {
       return const Center(child: CircularProgressIndicator());
@@ -102,7 +112,7 @@ class LibraryScreen extends ConsumerWidget {
             leading: CircleAvatar(
               backgroundColor: Theme.of(context).colorScheme.primaryContainer,
               child: Icon(
-                Icons.shuffle_rounded,
+                icons.shuffle,
                 color: Theme.of(context).colorScheme.primary,
               ),
             ),
@@ -136,7 +146,7 @@ class LibraryScreen extends ConsumerWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-          trailing: _buildPlaylistMenu(context, ref, track),
+          trailing: _buildPlaylistMenu(context, ref, track, icons),
           onTap: () {
             ref
                 .read(audioPlayerProvider.notifier)
@@ -152,16 +162,18 @@ class LibraryScreen extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     LibraryState state,
+    AppIconSet icons,
   ) {
     final artists = ref.read(libraryViewModelProvider.notifier).getArtists();
-    if (artists.isEmpty && !state.isScanning) return _buildEmptyState(ref);
+    if (artists.isEmpty && !state.isScanning)
+      return _buildEmptyState(ref, icons);
 
     return ListView.builder(
       itemCount: artists.length,
       itemBuilder: (context, index) {
         final artist = artists[index];
         return ListTile(
-          leading: const CircleAvatar(child: Icon(Icons.person_rounded)),
+          leading: CircleAvatar(child: Icon(icons.artist)),
           title: Text(artist),
           onTap: () {
             final artistTracks = ref
@@ -184,16 +196,18 @@ class LibraryScreen extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     LibraryState state,
+    AppIconSet icons,
   ) {
     final albums = ref.read(libraryViewModelProvider.notifier).getAlbums();
-    if (albums.isEmpty && !state.isScanning) return _buildEmptyState(ref);
+    if (albums.isEmpty && !state.isScanning)
+      return _buildEmptyState(ref, icons);
 
     return ListView.builder(
       itemCount: albums.length,
       itemBuilder: (context, index) {
         final album = albums[index];
         return ListTile(
-          leading: const CircleAvatar(child: Icon(Icons.album_rounded)),
+          leading: CircleAvatar(child: Icon(icons.album)),
           title: Text(album),
           onTap: () {
             final albumTracks = ref
@@ -216,12 +230,13 @@ class LibraryScreen extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     dynamic track,
+    AppIconSet icons,
   ) {
     return Consumer(
       builder: (context, ref, child) {
         final playlistsProviderState = ref.watch(playlistsProvider);
         return PopupMenuButton<int>(
-          icon: const Icon(Icons.playlist_add_rounded),
+          icon: Icon(icons.add),
           onSelected: (playlistId) {
             ref
                 .read(playlistsProvider.notifier)
@@ -244,15 +259,15 @@ class LibraryScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildEmptyState(WidgetRef ref) {
+  Widget _buildEmptyState(WidgetRef ref, AppIconSet icons) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(
-            Icons.music_off_rounded,
+          Icon(
+            icons.lyrics, // Usar nota si está disponible
             size: 64,
-            color: Color.fromRGBO(0, 0, 0, 0.5),
+            color: const Color.fromRGBO(0, 0, 0, 0.5),
           ),
           const SizedBox(height: 16),
           const Text(

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/app_constants.dart';
 import '../providers/playlists_provider.dart';
+import '../providers/customization_provider.dart';
+import '../../core/theme/icon_sets.dart';
 import 'playlist_tracks_screen.dart';
 
 class PlaylistScreen extends ConsumerWidget {
@@ -9,6 +11,8 @@ class PlaylistScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final customization = ref.watch(customizationProvider);
+    final icons = AppIconSet.fromStyle(customization.iconStyle);
     final playlistsAsync = ref.watch(playlistsProvider);
 
     return Scaffold(
@@ -16,7 +20,7 @@ class PlaylistScreen extends ConsumerWidget {
         title: const Text('Mis Listas'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.add_rounded),
+            icon: Icon(icons.add),
             onPressed: () => _showCreatePlaylistDialog(context, ref),
           ),
         ],
@@ -39,12 +43,12 @@ class PlaylistScreen extends ConsumerWidget {
                   backgroundColor: Theme.of(
                     context,
                   ).colorScheme.primaryContainer,
-                  child: const Icon(Icons.playlist_play_rounded),
+                  child: Icon(icons.playlist),
                 ),
                 title: Text(playlist.name),
                 subtitle: Text('${playlist.trackIds.length} canciones'),
                 trailing: IconButton(
-                  icon: const Icon(Icons.delete_outline_rounded),
+                  icon: Icon(icons.delete),
                   onPressed: () => _showDeleteConfirmation(
                     context,
                     ref,

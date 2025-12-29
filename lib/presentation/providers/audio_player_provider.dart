@@ -118,8 +118,37 @@ class AudioPlayerState {
   bool get isPaused => playbackState == PlaybackState.paused;
   bool get isBuffering => playbackState == PlaybackState.buffering;
   bool get hasError => error != null;
-  bool get hasNext => queue.isNotEmpty && currentIndex < queue.length - 1;
-  bool get hasPrevious => queue.isNotEmpty && currentIndex > 0;
+
+  /// Retorna la cola en el orden efectivo de reproducción (lineal o mezclado)
+  List<Track> get effectiveQueue {
+    if (shuffleMode && shuffledIndices.isNotEmpty) {
+      return shuffledIndices
+          .where((index) => index < queue.length)
+          .map((index) => queue[index])
+          .toList();
+    }
+    return queue;
+  }
+
+  /// Retorna la posición del track actual dentro de la cola efectiva
+  int get effectiveIndex {
+    if (shuffleMode && shuffledIndices.isNotEmpty) {
+      return shuffledIndices.indexOf(currentIndex);
+    }
+    return currentIndex;
+  }
+
+  bool get hasNext {
+    if (queue.isEmpty) return false;
+    final idx = effectiveIndex;
+    return idx != -1 && idx < queue.length - 1;
+  }
+
+  bool get hasPrevious {
+    if (queue.isEmpty) return false;
+    final idx = effectiveIndex;
+    return idx > 0;
+  }
 }
 
 /// Notifier del reproductor de audio

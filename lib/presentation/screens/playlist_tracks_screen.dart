@@ -5,6 +5,8 @@ import '../providers/library_view_model.dart';
 import '../widgets/track_artwork.dart';
 import '../../domain/entities/playlist.dart';
 import '../../domain/entities/track.dart';
+import '../providers/customization_provider.dart';
+import '../../core/theme/icon_sets.dart';
 
 class PlaylistTracksScreen extends ConsumerWidget {
   final Playlist playlist;
@@ -14,6 +16,8 @@ class PlaylistTracksScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final libraryState = ref.watch(libraryViewModelProvider);
+    final customization = ref.watch(customizationProvider);
+    final icons = AppIconSet.fromStyle(customization.iconStyle);
 
     // Filtrar canciones de la biblioteca que están en esta lista
     final List<Track> playlistTracks = libraryState.tracks
@@ -47,9 +51,33 @@ class PlaylistTracksScreen extends ConsumerWidget {
               ),
             )
           : ListView.builder(
-              itemCount: playlistTracks.length,
+              itemCount: playlistTracks.length + 1,
               itemBuilder: (context, index) {
-                final track = playlistTracks[index];
+                if (index == 0) {
+                  return ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: Theme.of(
+                        context,
+                      ).colorScheme.primaryContainer,
+                      child: Icon(
+                        icons.shuffle,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                    title: const Text(
+                      'Modo Aleatorio',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Text('${playlistTracks.length} canciones'),
+                    onTap: () {
+                      ref
+                          .read(audioPlayerProvider.notifier)
+                          .loadPlaylist(playlistTracks, 0, startShuffled: true);
+                    },
+                  );
+                }
+
+                final track = playlistTracks[index - 1];
                 return ListTile(
                   leading: Hero(
                     tag: 'artwork_${track.id}',
@@ -72,9 +100,7 @@ class PlaylistTracksScreen extends ConsumerWidget {
                   onTap: () {
                     ref
                         .read(audioPlayerProvider.notifier)
-                        .loadPlaylist(playlistTracks, index);
-                    // Opcional: Volver al reproductor
-                    Navigator.popUntil(context, (route) => route.isFirst);
+                        .loadPlaylist(playlistTracks, index - 1);
                   },
                 );
               },

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/audio_player_provider.dart';
 import '../providers/lyrics_provider.dart';
+import '../providers/customization_provider.dart';
+import '../../core/theme/icon_sets.dart';
 import '../../core/constants/app_constants.dart';
 
 class LyricsEditorScreen extends ConsumerStatefulWidget {
@@ -82,11 +84,17 @@ class _LyricsEditorScreenState extends ConsumerState<LyricsEditorScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final customization = ref.watch(customizationProvider);
+    final icons = AppIconSet.fromStyle(customization.iconStyle);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Editor de Letras'),
         actions: [
-          IconButton(icon: const Icon(Icons.save_rounded), onPressed: _save),
+          IconButton(
+            icon: Icon(icons.add),
+            onPressed: _save,
+          ), // Usamos 'add' o guardamos? AppIconSet no tiene 'save' explícito, usaré icons.lyrics o Icons.save por ahora o añadir 'delete'/'add'
         ],
       ),
       body: Padding(

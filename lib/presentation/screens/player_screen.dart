@@ -15,6 +15,10 @@ import '../widgets/lyrics_view.dart';
 import 'lyrics_editor_screen.dart';
 import '../providers/playlists_provider.dart';
 import '../../domain/entities/playlist.dart';
+import '../providers/library_view_model.dart';
+import '../providers/customization_provider.dart';
+import '../../core/theme/icon_sets.dart';
+import 'entity_detail_screen.dart';
 
 /// Pantalla principal del reproductor
 class PlayerScreen extends ConsumerStatefulWidget {
@@ -83,6 +87,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final customization = ref.watch(customizationProvider);
+    final icons = AppIconSet.fromStyle(customization.iconStyle);
+
     // Escuchar solo lo necesario para el build principal
     final currentTrack = ref.watch(
       audioPlayerProvider.select((s) => s.currentTrack),
@@ -182,7 +189,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               ],
             ),
             IconButton(
-              icon: const Icon(Icons.playlist_play_rounded),
+              icon: Icon(icons.playlist),
               onPressed: () {
                 Navigator.push(
                   context,
@@ -202,181 +209,246 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Carátula del álbum o Letras
-                Expanded(
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      // Carátula (se desvanece si hay letras)
-                      GestureDetector(
-                        onTap: () =>
-                            setState(() => _showOverlay = !_showOverlay),
-                        child: Stack(
-                          children: [
-                            AnimatedOpacity(
-                              duration: const Duration(milliseconds: 500),
-                              opacity: _showLyrics ? 0.2 : 1.0,
-                              child: PageView.builder(
-                                controller: _pageController,
-                                itemCount: queue.length,
-                                onPageChanged: (index) {
-                                  if (index != currentIndex) {
-                                    ref
-                                        .read(audioPlayerProvider.notifier)
-                                        .loadTrackInQueue(index);
-                                  }
-                                },
-                                itemBuilder: (context, index) {
-                                  final track = queue[index];
-                                  return _buildArtwork(context, track);
-                                },
-                              ),
+                const Spacer(flex: 1), // Empuja hacia abajo para centrar
+                // Carátula del álbum o Letras (60-70% del ancho)
+                Center(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: MediaQuery.of(context).size.width * 0.88,
+                      maxHeight: MediaQuery.of(context).size.width * 0.88,
+                    ),
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        // Carátula con PageView para swipe entre canciones
+                        GestureDetector(
+                          onTap: () =>
+                              setState(() => _showOverlay = !_showOverlay),
+                          child: AnimatedOpacity(
+                            duration: const Duration(milliseconds: 500),
+                            opacity: _showLyrics ? 0.2 : 1.0,
+                            child: PageView.builder(
+                              controller: _pageController,
+                              itemCount: queue.length,
+                              onPageChanged: (index) {
+                                if (index != currentIndex) {
+                                  ref
+                                      .read(audioPlayerProvider.notifier)
+                                      .loadTrackInQueue(index);
+                                }
+                              },
+                              itemBuilder: (context, index) {
+                                final track = queue[index];
+                                return _buildArtwork(context, track);
+                              },
                             ),
-                            if (_showOverlay && !_showLyrics)
-                              Positioned.fill(
-                                child: _buildOverlay(
-                                  context,
-                                  ref,
-                                  currentTrack,
-                                ),
-                              ),
-                          ],
+                          ),
                         ),
+
+                        // Overlay de controles rápidos (favorito, editar, etc.)
+                        if (_showOverlay && !_showLyrics)
+                          Positioned.fill(
+                            child: _buildOverlay(context, ref, currentTrack),
+                          ),
+
+                        // Vista de letras sincronizadas
+                        if (_showLyrics)
+                          Positioned.fill(
+                            child: GestureDetector(
+                              onTap: () => setState(() => _showLyrics = false),
+                              onLongPress: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const LyricsEditorScreen(),
+                                  ),
+                                );
+                              },
+                              child: const LyricsView(),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 48), // Espaciado emocional premium
+                // Información de la pista (Centrada)
+                Column(
+                  children: [
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      child: Text(
+                        currentTrack?.title ?? 'Sin pista',
+                        key: ValueKey(currentTrack?.id ?? 'none'),
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 26,
+                        ),
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-
-                      // Letras (se muestran sobre la carátula difuminada)
-                      if (_showLyrics)
-                        const Positioned.fill(child: LyricsView()),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: AppConstants.largePadding),
-
-                // Información de la pista con AnimatedSwitcher
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 300),
-                  child: Text(
-                    currentTrack?.title ?? 'Sin pista',
-                    key: ValueKey(currentTrack?.id ?? 'none'),
-                    style: Theme.of(context).textTheme.headlineMedium,
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-
-                const SizedBox(height: AppConstants.smallPadding),
-
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 300),
-                  child: Text(
-                    currentTrack?.artist ?? 'Artista desconocido',
-                    key: ValueKey(
-                      (currentTrack?.artist ?? 'unknown') +
-                          (currentTrack?.id ?? ''),
                     ),
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onSurface.withValues(alpha: 0.6),
+                    const SizedBox(height: 8),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      child: Text(
+                        currentTrack?.artist ?? 'Artista desconocido',
+                        key: ValueKey(
+                          (currentTrack?.artist ?? 'unknown') +
+                              (currentTrack?.id ?? ''),
+                        ),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurface.withValues(alpha: 0.6),
+                            ),
+                        textAlign: TextAlign.center,
+                      ),
                     ),
-                    textAlign: TextAlign.center,
-                  ),
+                  ],
                 ),
 
-                const SizedBox(height: AppConstants.largePadding * 2),
+                const SizedBox(height: 40),
 
-                // Barra de progreso
-                const ProgressBar(),
-
-                const SizedBox(height: AppConstants.largePadding),
-
-                // Controles
+                // Controles de Reproducción (Shuffle, Prev, Play, Next, Repeat)
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    // Botón Shuffle
                     IconButton(
                       onPressed: () => ref
                           .read(audioPlayerProvider.notifier)
                           .toggleShuffle(),
                       icon: Icon(
-                        shuffleMode
-                            ? Icons.shuffle_on_rounded
-                            : Icons.shuffle_rounded,
+                        icons.shuffle,
                         color: shuffleMode
                             ? Theme.of(context).colorScheme.primary
                             : null,
                       ),
-                      iconSize: AppConstants.mediumIconSize,
+                      iconSize: 28,
                     ),
-
-                    // Botón anterior
                     IconButton(
                       onPressed: hasPrevious
                           ? () => ref
                                 .read(audioPlayerProvider.notifier)
                                 .skipToPrevious()
                           : null,
-                      icon: const Icon(Icons.skip_previous_rounded),
-                      iconSize: AppConstants.largeIconSize,
+                      icon: Icon(icons.skipPrevious),
+                      iconSize: 44,
                     ),
-
-                    // Botón play/pause
-                    const PlayPauseButton(),
-
-                    // Botón siguiente
+                    const PlayPauseButton(size: 54),
                     IconButton(
                       onPressed: hasNext
                           ? () => ref
                                 .read(audioPlayerProvider.notifier)
                                 .skipToNext()
                           : null,
-                      icon: const Icon(Icons.skip_next_rounded),
-                      iconSize: AppConstants.largeIconSize,
+                      icon: Icon(icons.skipNext),
+                      iconSize: 44,
                     ),
-
-                    // Botón Repeat
                     IconButton(
                       onPressed: () => ref
                           .read(audioPlayerProvider.notifier)
                           .toggleRepeatMode(),
                       icon: Icon(
                         repeatMode == AudioRepeatMode.one
-                            ? Icons.repeat_one_on_rounded
-                            : repeatMode == AudioRepeatMode.all
-                            ? Icons.repeat_on_rounded
-                            : Icons.repeat_rounded,
+                            ? icons.repeatOne
+                            : icons.repeat,
                         color: repeatMode != AudioRepeatMode.off
                             ? Theme.of(context).colorScheme.primary
                             : null,
                       ),
-                      iconSize: AppConstants.mediumIconSize,
+                      iconSize: 28,
                     ),
                   ],
                 ),
 
-                const SizedBox(height: AppConstants.largePadding),
+                const SizedBox(height: 32),
 
-                // Estado de reproducción
-                if (isBuffering)
-                  const Padding(
-                    padding: EdgeInsets.all(AppConstants.smallPadding),
-                    child: CircularProgressIndicator(),
-                  ),
+                // Barra de progreso y tiempos (Bajo los controles)
+                const ProgressBar(),
 
-                if (hasError)
-                  Padding(
-                    padding: const EdgeInsets.all(AppConstants.defaultPadding),
-                    child: Text(
-                      'Error: $error',
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                      textAlign: TextAlign.center,
+                const SizedBox(height: 32),
+
+                // Acciones adicionales e información de navegación
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    IconButton(
+                      icon: Icon(icons.album),
+                      onPressed: () {
+                        if (currentTrack != null) {
+                          final albumTracks = ref
+                              .read(libraryViewModelProvider.notifier)
+                              .getTracksByAlbum(
+                                currentTrack.album ?? 'Desconocido',
+                              );
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => EntityDetailScreen(
+                                title: currentTrack.album ?? 'Álbum',
+                                tracks: albumTracks,
+                              ),
+                            ),
+                          );
+                        }
+                      },
+                      tooltip: 'Ver álbum',
                     ),
+                    IconButton(
+                      icon: Icon(icons.queue),
+                      onPressed: () => _showSmartQueue(context, ref),
+                      tooltip: 'Ver cola',
+                    ),
+                    IconButton(
+                      icon: Icon(icons.artist),
+                      onPressed: () {
+                        if (currentTrack != null) {
+                          final artistTracks = ref
+                              .read(libraryViewModelProvider.notifier)
+                              .getTracksByArtist(
+                                currentTrack.artist ?? 'Desconocido',
+                              );
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => EntityDetailScreen(
+                                title: currentTrack.artist ?? 'Artista',
+                                tracks: artistTracks,
+                              ),
+                            ),
+                          );
+                        }
+                      },
+                      tooltip: 'Ver artista',
+                    ),
+                  ],
+                ),
+
+                // Indicador de buffering o errores (discreto)
+                if (isBuffering || hasError)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 16),
+                    child: isBuffering
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Text(
+                            'Error: $error',
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.error,
+                              fontSize: 12,
+                            ),
+                          ),
                   ),
+
+                const Spacer(flex: 2), // Espacio inferior equilibrado
               ],
             ),
           ),
@@ -391,21 +463,24 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     return Container(
       margin: const EdgeInsets.all(AppConstants.smallPadding),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(AppConstants.defaultBorderRadius),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.2),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
+            color: Colors.black.withValues(alpha: 0.3),
+            blurRadius: 30,
+            offset: const Offset(0, 15),
           ),
         ],
       ),
       child: Hero(
         tag: 'artwork_${track.id}',
-        child: TrackArtwork(
-          trackId: track.id,
-          size: 320,
-          borderRadius: AppConstants.defaultBorderRadius,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: TrackArtwork(
+            trackId: track.id,
+            size: 500, // HD size
+            borderRadius: 20,
+          ),
         ),
       ),
     );
@@ -456,6 +531,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   _showLyrics = true;
                   _showOverlay = false;
                 });
+              },
+              onLongPress: () {
+                setState(() => _showOverlay = false);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const LyricsEditorScreen(),
+                  ),
+                );
               },
               child: const Text(
                 'LYRICS',
@@ -530,6 +614,110 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               ),
             ],
           ),
+        );
+      },
+    );
+  }
+
+  void _showSmartQueue(BuildContext context, WidgetRef ref) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.6,
+          minChildSize: 0.4,
+          maxChildSize: 0.9,
+          expand: false,
+          builder: (_, controller) {
+            return Consumer(
+              builder: (context, ref, _) {
+                final playerState = ref.watch(audioPlayerProvider);
+                final effectiveQueue = playerState.effectiveQueue;
+                final currentTrack = playerState.currentTrack;
+
+                return Container(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surface,
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(25),
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 12),
+                      Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[600],
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Text(
+                          'Siguiente en reproducción',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                      ),
+                      Expanded(
+                        child: ListView.builder(
+                          controller: controller,
+                          itemCount: effectiveQueue.length,
+                          itemBuilder: (context, index) {
+                            final track = effectiveQueue[index];
+                            final isCurrent = track.id == currentTrack?.id;
+
+                            return ListTile(
+                              leading: TrackArtwork(
+                                trackId: track.id,
+                                size: 40,
+                                borderRadius: 4,
+                              ),
+                              title: Text(
+                                track.title,
+                                style: TextStyle(
+                                  fontWeight: isCurrent
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
+                                  color: isCurrent
+                                      ? Theme.of(context).colorScheme.primary
+                                      : null,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              subtitle: Text(
+                                track.artist ?? 'Desconocido',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              trailing: isCurrent
+                                  ? const Icon(Icons.equalizer_rounded)
+                                  : null,
+                              onTap: () {
+                                // Encontrar el índice original en la cola real
+                                final originalIndex = playerState.queue
+                                    .indexWhere((t) => t.id == track.id);
+                                if (originalIndex != -1) {
+                                  ref
+                                      .read(audioPlayerProvider.notifier)
+                                      .loadTrackInQueue(originalIndex);
+                                }
+                                Navigator.pop(context);
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
         );
       },
     );
