@@ -2,13 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/audio_player_provider.dart';
 import '../providers/library_view_model.dart';
+import '../providers/library_helpers.dart';
 import '../providers/playlists_provider.dart';
 import '../widgets/track_artwork.dart';
+import '../widgets/library/folders_view.dart';
+import '../widgets/library/genres_view.dart';
 import '../../domain/entities/playlist.dart';
 import '../providers/customization_provider.dart';
 import '../../core/theme/icon_sets.dart';
 import 'settings_screen.dart';
 import 'entity_detail_screen.dart';
+import 'player_screen.dart';
 
 class LibraryScreen extends ConsumerWidget {
   const LibraryScreen({super.key});
@@ -42,16 +46,50 @@ class LibraryScreen extends ConsumerWidget {
     });
 
     return DefaultTabController(
-      length: 3,
+      length: 5,
       child: Consumer(
         builder: (context, ref, _) {
           final customization = ref.watch(customizationProvider);
           final icons = AppIconSet.fromStyle(customization.iconStyle);
 
+          final isGrid = ref.watch(isGridViewProvider);
+          final sortOption = ref.watch(sortOptionProvider);
+
           return Scaffold(
             appBar: AppBar(
-              title: const Text('Mi Música'),
+              title: const Text('Biblioteca'),
               actions: [
+                IconButton(
+                  icon: Icon(
+                    isGrid ? Icons.view_list_rounded : Icons.grid_view_rounded,
+                  ),
+                  onPressed: () {
+                    ref.read(isGridViewProvider.notifier).state = !isGrid;
+                  },
+                  tooltip: isGrid ? 'Vista lista' : 'Vista cuadrícula',
+                ),
+                PopupMenuButton<SortOption>(
+                  icon: const Icon(Icons.sort_rounded),
+                  tooltip: 'Ordenar',
+                  onSelected: (option) {
+                    ref.read(sortOptionProvider.notifier).state = option;
+                  },
+                  itemBuilder: (context) => [
+                    PopupMenuItem(
+                      value: SortOption.name,
+                      child: Text('Nombre'),
+                    ),
+                    PopupMenuItem(value: SortOption.date, child: Text('Fecha')),
+                    PopupMenuItem(
+                      value: SortOption.artist,
+                      child: Text('Artista'),
+                    ),
+                    PopupMenuItem(
+                      value: SortOption.album,
+                      child: Text('Álbum'),
+                    ),
+                  ],
+                ),
                 IconButton(
                   icon: const Icon(Icons.refresh_rounded),
                   onPressed: libraryState.isScanning
@@ -75,10 +113,13 @@ class LibraryScreen extends ConsumerWidget {
                 ),
               ],
               bottom: const TabBar(
+                isScrollable: true,
                 tabs: [
                   Tab(text: 'Canciones'),
-                  Tab(text: 'Artistas'),
                   Tab(text: 'Álbumes'),
+                  Tab(text: 'Artistas'),
+                  Tab(text: 'Carpetas'),
+                  Tab(text: 'Géneros'),
                 ],
               ),
             ),
@@ -88,8 +129,10 @@ class LibraryScreen extends ConsumerWidget {
               child: TabBarView(
                 children: [
                   _buildTracksList(context, ref, libraryState, icons),
-                  _buildArtistsList(context, ref, libraryState, icons),
                   _buildAlbumsList(context, ref, libraryState, icons),
+                  _buildArtistsList(context, ref, libraryState, icons),
+                  const FoldersView(),
+                  const GenresView(),
                 ],
               ),
             ),
@@ -134,7 +177,10 @@ class LibraryScreen extends ConsumerWidget {
               ref
                   .read(audioPlayerProvider.notifier)
                   .loadPlaylist(tracks, 0, startShuffled: true);
-              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const PlayerScreen()),
+              );
             },
           );
         }
@@ -160,7 +206,10 @@ class LibraryScreen extends ConsumerWidget {
             ref
                 .read(audioPlayerProvider.notifier)
                 .loadPlaylist(tracks, index - 1);
-            Navigator.pop(context);
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const PlayerScreen()),
+            );
           },
         );
       },

@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.remuh.remuh"
-    compileSdk = 35  // Android 15 (compatible con 16-17 preview)
+    compileSdk = 36  // Android 15 (compatible con 16-17 preview)
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

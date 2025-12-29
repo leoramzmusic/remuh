@@ -31,17 +31,13 @@ class ProgressBar extends ConsumerWidget {
       children: [
         SliderTheme(
           data: SliderTheme.of(context).copyWith(
-            trackHeight: 2.0, // Más fino estilo Spotify
+            trackHeight: 3.0,
             thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6.0),
             overlayShape: const RoundSliderOverlayShape(overlayRadius: 14.0),
-            activeTrackColor: Theme.of(context).colorScheme.primary,
-            inactiveTrackColor: Theme.of(
-              context,
-            ).colorScheme.onSurface.withValues(alpha: 0.1), // Más sutil
-            thumbColor: Theme.of(context).colorScheme.primary,
-            overlayColor: Theme.of(
-              context,
-            ).colorScheme.primary.withValues(alpha: 0.15),
+            activeTrackColor: Colors.white,
+            inactiveTrackColor: Colors.white.withValues(alpha: 0.3),
+            thumbColor: Colors.white,
+            overlayColor: Colors.white.withValues(alpha: 0.2),
           ),
           child: Slider(
             value: duration.inMilliseconds > 0
@@ -68,20 +64,18 @@ class ProgressBar extends ConsumerWidget {
             children: [
               Text(
                 _formatDuration(position),
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  fontSize: 11, // Más pequeño
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withValues(alpha: 0.5),
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Colors.white70,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
               Text(
                 _formatDuration(duration),
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  fontSize: 11,
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withValues(alpha: 0.5),
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Colors.white70,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ],

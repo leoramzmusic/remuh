@@ -5,7 +5,7 @@ import 'core/theme/app_theme.dart';
 import 'core/utils/logger.dart';
 import 'presentation/providers/audio_player_provider.dart';
 import 'presentation/providers/customization_provider.dart';
-import 'presentation/screens/player_screen.dart';
+import 'presentation/screens/main_scaffold.dart';
 import 'services/audio_service.dart';
 
 void main() async {
@@ -46,8 +46,8 @@ class RemuhApp extends ConsumerWidget {
       theme: AppTheme.getLightTheme(accentColor),
       darkTheme: AppTheme.getDarkTheme(accentColor),
       themeMode: ThemeMode.system, // Seguir configuración del sistema
-      // Pantalla inicial
-      home: const PlayerScreen(),
+      // Pantalla inicial - MainScaffold con navegación
+      home: const MainScaffold(),
     );
   }
 }
