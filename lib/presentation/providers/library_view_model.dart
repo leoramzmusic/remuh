@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../domain/entities/track.dart';
 import '../../domain/usecases/scan_tracks.dart';
 import 'audio_player_provider.dart';
@@ -8,12 +9,14 @@ class LibraryState {
   final List<Track> tracks;
   final bool isScanning;
   final int lastAddedCount;
+  final DateTime? lastScanTime;
   final String? error;
 
   LibraryState({
     this.tracks = const [],
     this.isScanning = false,
     this.lastAddedCount = 0,
+    this.lastScanTime,
     this.error,
   });
 
@@ -21,12 +24,14 @@ class LibraryState {
     List<Track>? tracks,
     bool? isScanning,
     int? lastAddedCount,
+    DateTime? lastScanTime,
     String? error,
   }) {
     return LibraryState(
       tracks: tracks ?? this.tracks,
       isScanning: isScanning ?? this.isScanning,
       lastAddedCount: lastAddedCount ?? this.lastAddedCount,
+      lastScanTime: lastScanTime ?? this.lastScanTime,
       error: error, // Se resetea si no se pasa
     );
   }
@@ -41,9 +46,26 @@ final libraryViewModelProvider =
 
 class LibraryViewModel extends StateNotifier<LibraryState> {
   final ScanTracks _scanTracks;
+  static const String _keyLastScanTime = 'library_last_scan_time';
 
   LibraryViewModel(this._scanTracks) : super(LibraryState()) {
+    _loadLastScanTime();
     scanLibrary(initial: true);
+  }
+
+  Future<void> _loadLastScanTime() async {
+    final prefs = await SharedPreferences.getInstance();
+    final timestamp = prefs.getInt(_keyLastScanTime);
+    if (timestamp != null) {
+      state = state.copyWith(
+        lastScanTime: DateTime.fromMillisecondsSinceEpoch(timestamp),
+      );
+    }
+  }
+
+  Future<void> _saveLastScanTime() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_keyLastScanTime, DateTime.now().millisecondsSinceEpoch);
   }
 
   Future<void> scanLibrary({bool initial = false}) async {
@@ -60,10 +82,13 @@ class LibraryViewModel extends StateNotifier<LibraryState> {
         added = newTracks.where((t) => !currentIds.contains(t.id)).length;
       }
 
+      await _saveLastScanTime();
+
       state = state.copyWith(
         tracks: newTracks,
         isScanning: false,
         lastAddedCount: added,
+        lastScanTime: DateTime.now(),
       );
     } catch (e) {
       state = state.copyWith(isScanning: false, error: e.toString());

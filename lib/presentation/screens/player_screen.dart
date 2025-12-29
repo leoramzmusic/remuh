@@ -19,6 +19,9 @@ import '../providers/library_view_model.dart';
 import '../providers/customization_provider.dart';
 import '../../core/theme/icon_sets.dart';
 import 'entity_detail_screen.dart';
+import '../../core/services/artwork_cache_service.dart';
+import '../widgets/app_drawer.dart';
+import 'package:share_plus/share_plus.dart';
 
 /// Pantalla principal del reproductor
 class PlayerScreen extends ConsumerStatefulWidget {
@@ -32,6 +35,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   late PageController _pageController;
   bool _showLyrics = false;
   bool _showOverlay = false;
+  final ArtworkCacheService _artworkCache = ArtworkCacheService();
 
   @override
   void initState() {
@@ -136,10 +140,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       }
     });
 
+    // Precache artwork for current and upcoming tracks
+    ref.listen(audioPlayerProvider.select((s) => s.currentIndex), (
+      previous,
+      next,
+    ) {
+      if (next >= 0 && queue.isNotEmpty) {
+        final trackIds = queue.map((t) => t.id).toList();
+        _artworkCache.precacheQueueArtwork(context, trackIds, next);
+      }
+    });
+
     return GestureDetector(
       onVerticalDragEnd: _onVerticalDragEnd,
       onHorizontalDragEnd: _onHorizontalDragEnd,
       child: Scaffold(
+        drawer: const AppDrawer(),
         appBar: AppBar(
           title: const Text('REMUH'),
           actions: [
@@ -314,10 +330,24 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
                 const SizedBox(height: 40),
 
-                // Controles de Reproducción (Shuffle, Prev, Play, Next, Repeat)
+                // Controles de Reproducción con iconos secundarios
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
+                    // Timer (Coming soon)
+                    IconButton(
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Temporizador próximamente'),
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.timer_outlined),
+                      iconSize: AppConstants.controlIconSmall,
+                      tooltip: 'Temporizador',
+                    ),
                     IconButton(
                       onPressed: () => ref
                           .read(audioPlayerProvider.notifier)
@@ -328,7 +358,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                             ? Theme.of(context).colorScheme.primary
                             : null,
                       ),
-                      iconSize: 28,
+                      iconSize: AppConstants.controlIconSmall,
                     ),
                     IconButton(
                       onPressed: hasPrevious
@@ -337,9 +367,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                 .skipToPrevious()
                           : null,
                       icon: Icon(icons.skipPrevious),
-                      iconSize: 44,
+                      iconSize: AppConstants.controlIconMedium,
                     ),
-                    const PlayPauseButton(size: 54),
+                    const PlayPauseButton(size: AppConstants.controlIconLarge),
                     IconButton(
                       onPressed: hasNext
                           ? () => ref
@@ -347,7 +377,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                 .skipToNext()
                           : null,
                       icon: Icon(icons.skipNext),
-                      iconSize: 44,
+                      iconSize: AppConstants.controlIconMedium,
                     ),
                     IconButton(
                       onPressed: () => ref
@@ -361,7 +391,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                             ? Theme.of(context).colorScheme.primary
                             : null,
                       ),
-                      iconSize: 28,
+                      iconSize: AppConstants.controlIconSmall,
+                    ),
+                    // Equalizer (Coming soon)
+                    IconButton(
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Ecualizador próximamente'),
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.equalizer_rounded),
+                      iconSize: AppConstants.controlIconSmall,
+                      tooltip: 'Ecualizador',
                     ),
                   ],
                 ),
@@ -377,6 +421,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
+                    IconButton(
+                      icon: const Icon(Icons.share_rounded),
+                      onPressed: () {
+                        if (currentTrack != null) {
+                          Share.share(
+                            '🎵 Escuchando: ${currentTrack.title}\n'
+                            '🎤 Artista: ${currentTrack.artist ?? "Desconocido"}\n'
+                            '💿 Álbum: ${currentTrack.album ?? "Desconocido"}',
+                            subject: 'Compartir canción desde REMUH',
+                          );
+                        }
+                      },
+                      tooltip: 'Compartir',
+                    ),
                     IconButton(
                       icon: Icon(icons.album),
                       onPressed: () {

@@ -471,6 +471,25 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
     _saveState();
   }
 
+  /// Añadir pista al final de la cola
+  void addToEnd(Track track) {
+    final newQueue = List<Track>.from(state.queue)..add(track);
+    state = state.copyWith(queue: newQueue);
+    _saveState();
+  }
+
+  /// Insertar pista para reproducir después de la actual
+  void playNext(Track track) {
+    final newQueue = List<Track>.from(state.queue);
+    final insertIndex = state.currentIndex + 1;
+
+    if (insertIndex <= newQueue.length) {
+      newQueue.insert(insertIndex, track);
+      state = state.copyWith(queue: newQueue);
+      _saveState();
+    }
+  }
+
   /// Cargar una pista específica de la cola sin empezar reproducción necesariamente
   Future<void> loadTrackInQueue(int index) async {
     final track = state.queue[index];

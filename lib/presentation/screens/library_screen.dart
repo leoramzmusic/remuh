@@ -53,6 +53,15 @@ class LibraryScreen extends ConsumerWidget {
               title: const Text('Mi Música'),
               actions: [
                 IconButton(
+                  icon: const Icon(Icons.refresh_rounded),
+                  onPressed: libraryState.isScanning
+                      ? null
+                      : () => ref
+                            .read(libraryViewModelProvider.notifier)
+                            .scanLibrary(),
+                  tooltip: 'Actualizar biblioteca',
+                ),
+                IconButton(
                   icon: Icon(icons.settings),
                   onPressed: () {
                     Navigator.push(

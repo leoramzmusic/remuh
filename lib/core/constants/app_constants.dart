@@ -20,4 +20,10 @@ class AppConstants {
   static const double mediumIconSize = 24.0;
   static const double largeIconSize = 32.0;
   static const double extraLargeIconSize = 48.0;
+
+  // Tamaños de iconos de control del reproductor
+  static const double controlIconSmall =
+      24.0; // Secondary controls (timer, equalizer)
+  static const double controlIconMedium = 44.0; // Skip buttons
+  static const double controlIconLarge = 64.0; // Play/pause button
 }
