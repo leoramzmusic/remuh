@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/entities/track.dart';
 import '../providers/audio_player_provider.dart';
-import '../providers/customization_provider.dart';
-import '../../core/theme/icon_sets.dart';
 import '../widgets/track_artwork.dart';
 
 class EntityDetailScreen extends ConsumerWidget {
@@ -18,9 +16,6 @@ class EntityDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final customization = ref.watch(customizationProvider);
-    final icons = AppIconSet.fromStyle(customization.iconStyle);
-
     return Scaffold(
       appBar: AppBar(title: Text(title)),
       body: tracks.isEmpty
@@ -34,9 +29,19 @@ class EntityDetailScreen extends ConsumerWidget {
                       backgroundColor: Theme.of(
                         context,
                       ).colorScheme.primaryContainer,
-                      child: Icon(
-                        icons.shuffle,
-                        color: Theme.of(context).colorScheme.primary,
+                      child: Consumer(
+                        builder: (context, ref, _) {
+                          final isShuffleActive = ref.watch(
+                            audioPlayerProvider.select((s) => s.shuffleMode),
+                          );
+                          return Icon(
+                            Icons.shuffle,
+                            size: 28,
+                            color: isShuffleActive
+                                ? Theme.of(context).colorScheme.secondary
+                                : Colors.white,
+                          );
+                        },
                       ),
                     ),
                     title: const Text(

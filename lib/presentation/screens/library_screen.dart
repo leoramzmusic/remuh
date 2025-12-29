@@ -163,9 +163,19 @@ class LibraryScreen extends ConsumerWidget {
           return ListTile(
             leading: CircleAvatar(
               backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-              child: Icon(
-                icons.shuffle,
-                color: Theme.of(context).colorScheme.primary,
+              child: Consumer(
+                builder: (context, ref, _) {
+                  final isShuffleActive = ref.watch(
+                    audioPlayerProvider.select((s) => s.shuffleMode),
+                  );
+                  return Icon(
+                    Icons.shuffle,
+                    size: 28,
+                    color: isShuffleActive
+                        ? Theme.of(context).colorScheme.secondary
+                        : Colors.white,
+                  );
+                },
               ),
             ),
             title: const Text(

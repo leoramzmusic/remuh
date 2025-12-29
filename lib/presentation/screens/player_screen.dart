@@ -27,7 +27,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Timer? _debounceTimer; // Timer for debouncing swipes
   bool _showLyrics = false;
   final ColorExtractionService _colorService = ColorExtractionService();
-  Color? _backgroundColor; // Nullable to use theme color initially
+  List<Color>? _backgroundColors; // List for gradient
 
   @override
   void initState() {
@@ -56,10 +56,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Future<void> _updateBackgroundColor(String? trackId) async {
     if (trackId == null) return;
 
-    final color = await _colorService.getDominantColor(trackId);
+    final colors = await _colorService.getBackgroundColors(trackId);
     if (mounted) {
       setState(() {
-        _backgroundColor = color;
+        _backgroundColors = colors;
       });
     }
   }
@@ -93,8 +93,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       backgroundColor: Colors.black, // Dark mode strict
       body: Stack(
         children: [
-          // Optional: Background gradient if desired, or stick to plain black as requested
-          // Container(color: Colors.black),
+          // Gradient Background
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: _backgroundColors ?? [Colors.black, Colors.black],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+            ),
+          ),
+          // Subtle overlay to ensure text readability if needed, or rely on dark colors
+          Container(color: Colors.black.withOpacity(0.3)),
           Column(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -253,13 +263,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               onPressed: () =>
                   ref.read(audioPlayerProvider.notifier).toggleShuffle(),
             ),
-            IconButton(
-              icon: const Icon(
-                Icons.skip_previous,
-                color: Colors.white,
-                size: 36,
+            _AnimatedIconButton(
+              icon: const Padding(
+                padding: EdgeInsets.all(8.0),
+                child: Icon(Icons.skip_previous, color: Colors.white, size: 36),
               ),
-              onPressed: hasPrevious
+              onTap: hasPrevious
                   ? () =>
                         ref.read(audioPlayerProvider.notifier).skipToPrevious()
                   : null,
@@ -287,9 +296,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 padding: const EdgeInsets.all(16),
               ),
             ),
-            IconButton(
-              icon: const Icon(Icons.skip_next, color: Colors.white, size: 36),
-              onPressed: hasNext
+            _AnimatedIconButton(
+              icon: const Padding(
+                padding: EdgeInsets.all(8.0),
+                child: Icon(Icons.skip_next, color: Colors.white, size: 36),
+              ),
+              onTap: hasNext
                   ? () => ref.read(audioPlayerProvider.notifier).skipToNext()
                   : null,
             ),
@@ -451,6 +463,48 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       ),
       child: const Center(
         child: Icon(Icons.music_note, color: Colors.white24, size: 80),
+      ),
+    );
+  }
+}
+
+class _AnimatedIconButton extends StatefulWidget {
+  final Widget icon;
+  final VoidCallback? onTap;
+  final double pressedScale = 0.8;
+  final Duration duration = const Duration(milliseconds: 150);
+
+  const _AnimatedIconButton({required this.icon, required this.onTap});
+
+  @override
+  _AnimatedIconButtonState createState() => _AnimatedIconButtonState();
+}
+
+class _AnimatedIconButtonState extends State<_AnimatedIconButton> {
+  bool _isPressed = false;
+
+  void _handleTap() {
+    if (widget.onTap == null) return;
+
+    setState(() => _isPressed = true);
+    widget.onTap!();
+
+    Future.delayed(widget.duration, () {
+      if (mounted) {
+        setState(() => _isPressed = false);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: _handleTap,
+      child: AnimatedScale(
+        scale: _isPressed ? widget.pressedScale : 1.0,
+        duration: widget.duration,
+        curve: Curves.easeInOut,
+        child: widget.icon, // The icon widget itself (e.g. Icon or IconButton)
       ),
     );
   }

@@ -7,13 +7,19 @@ import '../utils/logger.dart';
 /// Service for extracting dominant colors from album artwork
 class ColorExtractionService {
   final OnAudioQuery _audioQuery = OnAudioQuery();
-  final Map<String, Color> _colorCache = {};
+  final Map<String, List<Color>> _paletteCache = {};
 
   /// Extract dominant color from track artwork
   Future<Color> getDominantColor(String trackId) async {
+    final colors = await getBackgroundColors(trackId);
+    return colors.isNotEmpty ? colors.first : Colors.deepPurple;
+  }
+
+  /// Extract gradient colors from track artwork
+  Future<List<Color>> getBackgroundColors(String trackId) async {
     // Check cache first
-    if (_colorCache.containsKey(trackId)) {
-      return _colorCache[trackId]!;
+    if (_paletteCache.containsKey(trackId)) {
+      return _paletteCache[trackId]!;
     }
 
     try {
@@ -36,27 +42,39 @@ class ColorExtractionService {
         // Generate palette
         final palette = await PaletteGenerator.fromImage(
           image,
-          maximumColorCount: 16,
+          maximumColorCount: 5,
         );
 
-        // Get best color (prefer vibrant, then dominant, then fallback)
-        final color =
-            palette.vibrantColor?.color ??
+        // Get colors for gradient (Dominant -> Vibrant or Muted)
+        Color color1 =
+            palette.darkVibrantColor?.color ??
             palette.dominantColor?.color ??
+            Colors.black;
+        Color color2 =
             palette.mutedColor?.color ??
-            Colors.deepPurple;
+            palette.darkMutedColor?.color ??
+            Colors.grey[900]!;
 
-        _colorCache[trackId] = color;
-        Logger.info('Extracted color for track $trackId: $color');
-        return color;
+        // Ensure we have at least something dark for the background
+        if (color1.computeLuminance() > 0.5) {
+          color1 = getDarkerShade(color1);
+        }
+        if (color2.computeLuminance() > 0.5) {
+          color2 = getDarkerShade(color2);
+        }
+
+        final colors = [color1, color2];
+        _paletteCache[trackId] = colors;
+        Logger.info('Extracted palette for track $trackId: $colors');
+        return colors;
       }
     } catch (e) {
-      Logger.warning('Failed to extract color for track $trackId: $e');
+      Logger.warning('Failed to extract palette for track $trackId: $e');
     }
 
-    // Fallback color
-    final fallback = Colors.deepPurple;
-    _colorCache[trackId] = fallback;
+    // Fallback colors
+    final fallback = [Colors.black, Colors.grey[900]!];
+    _paletteCache[trackId] = fallback;
     return fallback;
   }
 
@@ -74,12 +92,12 @@ class ColorExtractionService {
 
   /// Clear color cache
   void clearCache() {
-    _colorCache.clear();
+    _paletteCache.clear();
     Logger.info('Cleared color extraction cache');
   }
 
   /// Get cache statistics
   Map<String, dynamic> getCacheStats() {
-    return {'cachedColors': _colorCache.length};
+    return {'cachedPalettes': _paletteCache.length};
   }
 }

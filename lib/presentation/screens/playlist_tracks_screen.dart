@@ -5,8 +5,6 @@ import '../providers/library_view_model.dart';
 import '../widgets/track_artwork.dart';
 import '../../domain/entities/playlist.dart';
 import '../../domain/entities/track.dart';
-import '../providers/customization_provider.dart';
-import '../../core/theme/icon_sets.dart';
 
 class PlaylistTracksScreen extends ConsumerWidget {
   final Playlist playlist;
@@ -16,8 +14,6 @@ class PlaylistTracksScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final libraryState = ref.watch(libraryViewModelProvider);
-    final customization = ref.watch(customizationProvider);
-    final icons = AppIconSet.fromStyle(customization.iconStyle);
 
     // Filtrar canciones de la biblioteca que están en esta lista
     final List<Track> playlistTracks = libraryState.tracks
@@ -59,9 +55,19 @@ class PlaylistTracksScreen extends ConsumerWidget {
                       backgroundColor: Theme.of(
                         context,
                       ).colorScheme.primaryContainer,
-                      child: Icon(
-                        icons.shuffle,
-                        color: Theme.of(context).colorScheme.primary,
+                      child: Consumer(
+                        builder: (context, ref, _) {
+                          final isShuffleActive = ref.watch(
+                            audioPlayerProvider.select((s) => s.shuffleMode),
+                          );
+                          return Icon(
+                            Icons.shuffle,
+                            size: 28,
+                            color: isShuffleActive
+                                ? Theme.of(context).colorScheme.secondary
+                                : Colors.white,
+                          );
+                        },
                       ),
                     ),
                     title: const Text(
