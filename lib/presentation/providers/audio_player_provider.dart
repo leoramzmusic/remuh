@@ -74,6 +74,7 @@ class AudioPlayerState {
   final bool shuffleMode;
   final List<int> shuffledIndices;
   final String? error;
+  final String? playlistName;
 
   const AudioPlayerState({
     this.currentTrack,
@@ -86,6 +87,7 @@ class AudioPlayerState {
     this.shuffleMode = false,
     this.shuffledIndices = const [],
     this.error,
+    this.playlistName,
   });
 
   AudioPlayerState copyWith({
@@ -99,6 +101,7 @@ class AudioPlayerState {
     bool? shuffleMode,
     List<int>? shuffledIndices,
     String? error,
+    String? playlistName,
   }) {
     return AudioPlayerState(
       currentTrack: currentTrack ?? this.currentTrack,
@@ -111,6 +114,7 @@ class AudioPlayerState {
       shuffleMode: shuffleMode ?? this.shuffleMode,
       shuffledIndices: shuffledIndices ?? this.shuffledIndices,
       error: error,
+      playlistName: playlistName ?? this.playlistName,
     );
   }
 
@@ -292,6 +296,7 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
     List<Track> tracks,
     int initialIndex, {
     bool startShuffled = false,
+    String? playlistName,
   }) async {
     if (tracks.isEmpty) return;
 
@@ -314,6 +319,7 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
         shuffleMode: startShuffled,
         shuffledIndices: shuffledIndices,
         error: null,
+        playlistName: playlistName,
       );
 
       await _loadTrack(track);

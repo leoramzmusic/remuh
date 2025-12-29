@@ -8,7 +8,7 @@ REMUH es un reproductor de música moderno, minimalista y potente construido con
 - **Escaneo Inteligente**: Indexación automática de archivos locales con detección de cambios (Pull-to-refresh).
 - **Gestos Avanzados**:
   - Desliza horizontalmente para cambiar de canción.
-  - Desliza hacia abajo para ver la cola de reproducción ("A continuación").
+  - Desliza hacia abajo para ver la cola de reproducción (" ").
   - Desliza hacia arriba para volver a la biblioteca.
 - **Segundo Plano**: Soporte completo para controles en la pantalla de bloqueo y notificaciones del sistema.
 

@@ -348,11 +348,31 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               tooltip: 'Album Songs',
             ),
             IconButton(
-              icon: const Icon(Icons.queue_music, color: Colors.white),
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const QueueScreen()),
+              icon: Icon(
+                Icons.queue_music,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
+              onPressed: () {
+                showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true,
+                  backgroundColor: Theme.of(context).colorScheme.surface,
+                  shape: const RoundedRectangleBorder(
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(24),
+                    ),
+                  ),
+                  builder: (context) => DraggableScrollableSheet(
+                    initialChildSize: 0.6,
+                    minChildSize: 0.4,
+                    maxChildSize: 0.95,
+                    expand: false,
+                    builder: (context, scrollController) {
+                      return QueueScreen(scrollController: scrollController);
+                    },
+                  ),
+                );
+              },
               tooltip: 'Queue',
             ),
             IconButton(
