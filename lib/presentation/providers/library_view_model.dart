@@ -50,7 +50,12 @@ class LibraryViewModel extends StateNotifier<LibraryState> {
 
   LibraryViewModel(this._scanTracks) : super(LibraryState()) {
     _loadLastScanTime();
-    scanLibrary(initial: true);
+    // Delay scan to ensure UI is ready and avoid permission errors on startup
+    // Delay scan to ensure UI is ready and avoid permission errors on startup
+    Future.delayed(
+      const Duration(seconds: 1),
+      () => scanLibrary(initial: true),
+    );
   }
 
   Future<void> _loadLastScanTime() async {

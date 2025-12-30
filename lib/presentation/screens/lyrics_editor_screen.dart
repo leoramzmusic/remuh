@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/audio_player_provider.dart';
 import '../providers/lyrics_provider.dart';
-import '../providers/customization_provider.dart';
-import '../../core/theme/icon_sets.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/services/lyrics_sync_service.dart';
 
 class LyricsEditorScreen extends ConsumerStatefulWidget {
   const LyricsEditorScreen({super.key});
@@ -15,6 +14,7 @@ class LyricsEditorScreen extends ConsumerStatefulWidget {
 
 class _LyricsEditorScreenState extends ConsumerState<LyricsEditorScreen> {
   final TextEditingController _controller = TextEditingController();
+  bool _isLoadingSync = false;
 
   @override
   void initState() {
@@ -79,6 +79,53 @@ class _LyricsEditorScreenState extends ConsumerState<LyricsEditorScreen> {
     });
   }
 
+  Future<void> _autoSync() async {
+    final track = ref.read(audioPlayerProvider).currentTrack;
+    if (track == null || _controller.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Carga un track y pega la letra primero')),
+      );
+      return;
+    }
+
+    setState(() => _isLoadingSync = true);
+
+    try {
+      final syncService = ref.read(lyricsSyncServiceProvider);
+      final syncedLrc = await syncService.syncLyrics(
+        audioPath: track.filePath,
+        lyricsText: _controller.text,
+      );
+
+      if (syncedLrc != null && mounted) {
+        setState(() {
+          _controller.text = syncedLrc;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('¡Sincronización completada!')),
+        );
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Error en la sincronización. Verifica la configuración del API Hub.',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingSync = false);
+      }
+    }
+  }
+
   Future<void> _save() async {
     final track = ref.read(audioPlayerProvider).currentTrack;
     if (track == null) return;
@@ -139,20 +186,43 @@ class _LyricsEditorScreenState extends ConsumerState<LyricsEditorScreen> {
               ),
             ),
             const SizedBox(height: 20),
-            ElevatedButton.icon(
-              onPressed: _insertTimestamp,
-              icon: const Icon(Icons.timer_outlined, size: 28),
-              label: const Text(
-                'Insertar Tiempo Actual',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              style: ElevatedButton.styleFrom(
-                minimumSize: const Size.fromHeight(60),
-                backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                foregroundColor: Theme.of(
-                  context,
-                ).colorScheme.onPrimaryContainer,
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _isLoadingSync ? null : _insertTimestamp,
+                    icon: const Icon(Icons.timer_outlined),
+                    label: const Text('Insertar Tiempo'),
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(50),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _isLoadingSync ? null : _autoSync,
+                    icon: _isLoadingSync
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.auto_fix_high),
+                    label: const Text('Auto-Sync'),
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(50),
+                      backgroundColor: Theme.of(context).colorScheme.secondary,
+                      foregroundColor: Theme.of(
+                        context,
+                      ).colorScheme.onSecondary,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),

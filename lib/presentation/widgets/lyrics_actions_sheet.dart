@@ -61,11 +61,18 @@ class LyricsActionsSheet extends ConsumerWidget {
           const Divider(color: Colors.white10, height: 24),
           _buildActionItem(
             context,
-            icon: Icons.mic_none,
-            label: 'Detectar desde audio (ASR)',
-            subtitle: 'Próximamente: Reconocimiento vía Whisper',
-            enabled: false,
-            onTap: () {},
+            icon: Icons.auto_fix_high,
+            label: 'Sincronizar automáticamente',
+            subtitle: 'Detecta los tiempos usando IA (Forced Alignment)',
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const LyricsEditorScreen(),
+                ),
+              );
+            },
           ),
           _buildActionItem(
             context,
@@ -168,7 +175,9 @@ class LyricsActionsSheet extends ConsumerWidget {
     final url = Uri.parse('https://www.google.com/search?q=$query');
 
     if (await canLaunchUrl(url)) {
-      Navigator.pop(context);
+      if (context.mounted) {
+        Navigator.pop(context);
+      }
       await launchUrl(url, mode: LaunchMode.externalApplication);
     } else {
       if (context.mounted) {

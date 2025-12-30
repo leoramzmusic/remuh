@@ -20,16 +20,33 @@ subprojects {
         if (project.hasProperty("android")) {
             val android = project.extensions.getByName("android") as com.android.build.gradle.BaseExtension
             
-            // Fix Namespace
-            if (android.namespace == null) {
-                android.namespace = "com.lucasjosino.on_audio_query"
-            }
+            // Fix SDK Version (Safely update if needed)
             
             // Fix SDK Version (Safely update if needed)
             if (android.compileSdkVersion != null && android.compileSdkVersion!!.contains("35").not()) {
                 // Only upgrade if it's lower? Actually, let's just let plugins use what they define
                 // unless it's known to be too low.
                 // For now, let's REMOVE the force to resolve the BAKLAVA error.
+            }
+            
+            // Fix: Inject missing namespace if not specified by reading from AndroidManifest.xml
+            if (android.namespace == null) {
+                try {
+                    val manifestFile = project.file("src/main/AndroidManifest.xml")
+                    if (manifestFile.exists()) {
+                        val manifestXml = manifestFile.readText()
+                        val packageMatch = Regex("package=\"([^\"]+)\"").find(manifestXml)
+                        if (packageMatch != null) {
+                            android.namespace = packageMatch.groupValues[1]
+                        }
+                    }
+                } catch (ignored: Exception) {
+                }
+                
+                // Fallback if still null or if reading failed
+                if (android.namespace == null) {
+                    android.namespace = "com.leo.remuh.${project.name.replace("-", "_").replace(".", "_")}"
+                }
             }
             
             // Fix JVM Target (Force Java 17)
@@ -46,9 +63,6 @@ subprojects {
             }
         }
     }
-}
-subprojects {
-    project.evaluationDependsOn(":app")
 }
 
 tasks.register<Delete>("clean") {

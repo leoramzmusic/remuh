@@ -26,4 +26,9 @@ class AppConstants {
       24.0; // Secondary controls (timer, equalizer)
   static const double controlIconMedium = 44.0; // Skip buttons
   static const double controlIconLarge = 64.0; // Play/pause button
+
+  // APIs y Servicios
+  // TODO: Configura aquí la URL de tu microservicio de sincronización (Aeneas/Whisper)
+  static const String lyricsSyncApiEndpoint = '';
+  static const String defaultLyricsLanguage = 'spa';
 }
