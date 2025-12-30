@@ -13,6 +13,7 @@ import 'entity_detail_screen.dart';
 import '../../core/services/color_extraction_service.dart';
 import 'package:flutter/services.dart';
 import '../widgets/track_actions_sheet.dart';
+import '../widgets/lyrics_actions_sheet.dart';
 import '../../domain/repositories/audio_repository.dart';
 
 /// Pantalla principal del reproductor - Rediseñada
@@ -136,41 +137,77 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               builder: (context, value, child) {
                 return Opacity(opacity: value, child: child);
               },
-              child: DraggableScrollableSheet(
-                initialChildSize: 0.7,
-                minChildSize: 0.4,
-                maxChildSize: 0.95,
-                builder: (context, scrollController) {
-                  return Container(
-                    decoration: const BoxDecoration(
-                      borderRadius: BorderRadius.vertical(
-                        top: Radius.circular(32),
-                      ),
-                    ),
-                    clipBehavior: Clip.antiAlias,
-                    child: Stack(
-                      children: [
-                        LyricsView(
-                          scrollController: scrollController,
-                          opacity: 0.7, // Higher opacity for sheet mode
+              child: NotificationListener<DraggableScrollableNotification>(
+                onNotification: (notification) {
+                  if (notification.extent == 0.0) {
+                    setState(() {
+                      _showLyrics = false;
+                    });
+                  }
+                  return true;
+                },
+                child: DraggableScrollableSheet(
+                  initialChildSize: 0.5,
+                  minChildSize: 0.0,
+                  maxChildSize: 0.95,
+                  snap: true,
+                  snapSizes: const [0.0, 0.5, 0.95],
+                  builder: (context, scrollController) {
+                    return Container(
+                      decoration: const BoxDecoration(
+                        borderRadius: BorderRadius.vertical(
+                          top: Radius.circular(32),
                         ),
-                        // Handle (Pill)
-                        Align(
-                          alignment: Alignment.topCenter,
-                          child: Container(
-                            margin: const EdgeInsets.only(top: 12),
-                            width: 36,
-                            height: 4,
-                            decoration: BoxDecoration(
-                              color: Colors.white24,
-                              borderRadius: BorderRadius.circular(2),
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: Stack(
+                        children: [
+                          LyricsView(
+                            scrollController: scrollController,
+                            opacity: 0.7, // Higher opacity for sheet mode
+                          ),
+                          // Handle (Pill)
+                          Align(
+                            alignment: Alignment.topCenter,
+                            child: Container(
+                              margin: const EdgeInsets.only(top: 12),
+                              width: 36,
+                              height: 4,
+                              decoration: BoxDecoration(
+                                color: Colors.white24,
+                                borderRadius: BorderRadius.circular(2),
+                              ),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
+                          // More Actions for Lyrics
+                          if (currentTrack != null)
+                            Align(
+                              alignment: Alignment.topRight,
+                              child: Padding(
+                                padding: const EdgeInsets.all(8.0),
+                                child: IconButton(
+                                  icon: const Icon(
+                                    Icons.more_vert,
+                                    color: Colors.white70,
+                                  ),
+                                  onPressed: () {
+                                    showModalBottomSheet(
+                                      context: context,
+                                      isScrollControlled: true,
+                                      backgroundColor: Colors.transparent,
+                                      builder: (context) => LyricsActionsSheet(
+                                        track: currentTrack,
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
               ),
             ),
         ],

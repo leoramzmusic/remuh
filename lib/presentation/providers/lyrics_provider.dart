@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/utils/lrc_parser.dart';
 import '../../domain/entities/lyric_line.dart';
@@ -91,6 +93,15 @@ class LyricsNotifier extends StateNotifier<LyricsState> {
         return;
       }
 
+      // 1.1 Intentar buscar en caché local (fallback)
+      final localFile = await _getLocalLrcFile(trackPath);
+      if (await localFile.exists()) {
+        final content = await localFile.readAsString();
+        final lines = LrcParser.parse(content);
+        state = state.copyWith(lines: lines, isLoading: false, isOnline: false);
+        return;
+      }
+
       // 2. Si no hay local y tenemos meta-datos, buscar online
       if (title != null && artist != null) {
         // Obtener token dinámico de personalización
@@ -149,7 +160,18 @@ class LyricsNotifier extends StateNotifier<LyricsState> {
     try {
       final lrcPath = trackPath.replaceAll(RegExp(r'\.[^.]+$'), '.lrc');
       final file = File(lrcPath);
-      await file.writeAsString(content);
+
+      try {
+        await file.writeAsString(content);
+      } catch (e) {
+        // Si falla por permisos, intentar en caché local
+        if (e is FileSystemException) {
+          final localFile = await _getLocalLrcFile(trackPath);
+          await localFile.writeAsString(content);
+        } else {
+          rethrow;
+        }
+      }
 
       // Si el track guardado es el actual, actualizamos el estado
       final currentTrack = _ref.read(audioPlayerProvider).currentTrack;
@@ -160,5 +182,19 @@ class LyricsNotifier extends StateNotifier<LyricsState> {
     } catch (e) {
       state = state.copyWith(error: 'No se pudo guardar: $e');
     }
+  }
+
+  /// Obtener ruta de archivo LRC en almacenamiento interno de la app
+  Future<File> _getLocalLrcFile(String trackPath) async {
+    final docsDir = await getApplicationDocumentsDirectory();
+    final lyricsDir = Directory(p.join(docsDir.path, 'lyrics'));
+
+    if (!await lyricsDir.exists()) {
+      await lyricsDir.create(recursive: true);
+    }
+
+    // Usar el nombre del archivo de música pero con .lrc
+    final fileName = p.basenameWithoutExtension(trackPath);
+    return File(p.join(lyricsDir.path, '$fileName.lrc'));
   }
 }

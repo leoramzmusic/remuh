@@ -12,7 +12,7 @@ void main() {
     // Verify that the app bar title is present
     expect(find.text('REMUH'), findsWidgets);
 
-    // Verify that the player screen is loaded (looking for music icon or play button)
-    expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
+    // Verify that the library screen is loaded by checking for the shuffle icon in the header
+    expect(find.byIcon(Icons.shuffle), findsWidgets);
   });
 }

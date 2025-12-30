@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:auto_size_text/auto_size_text.dart';
+import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import '../providers/lyrics_provider.dart';
 import '../providers/audio_player_provider.dart';
 
@@ -14,39 +16,31 @@ class LyricsView extends ConsumerStatefulWidget {
 }
 
 class _LyricsViewState extends ConsumerState<LyricsView> {
-  late ScrollController _internalScrollController;
+  final ItemScrollController _itemScrollController = ItemScrollController();
+  final ItemPositionsListener _itemPositionsListener =
+      ItemPositionsListener.create();
   static const double _rowHeight = 64.0;
-
-  ScrollController get _activeScrollController =>
-      widget.scrollController ?? _internalScrollController;
 
   @override
   void initState() {
     super.initState();
-    _internalScrollController = ScrollController();
   }
 
   @override
   void dispose() {
-    _internalScrollController.dispose();
     super.dispose();
   }
 
   void _scrollToIndex(int index) {
-    if (!_activeScrollController.hasClients || index < 0) {
+    if (!_itemScrollController.isAttached || index < 0) {
       return;
     }
 
-    final screenHeight = MediaQuery.of(context).size.height;
-    // Aim for upper-middle part of the screen for active line
-    final centerOffset = (screenHeight * 0.35) - (_rowHeight / 2);
-
-    final targetOffset = (index * _rowHeight) - centerOffset;
-
-    _activeScrollController.animateTo(
-      targetOffset.clamp(0, _activeScrollController.position.maxScrollExtent),
+    _itemScrollController.scrollTo(
+      index: index,
       duration: const Duration(milliseconds: 600),
       curve: Curves.easeOutCubic,
+      alignment: 0.5, // Centra el elemento en el viewport
     );
   }
 
@@ -88,11 +82,12 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
       );
     }
 
-    return ListView.builder(
-      controller: _activeScrollController,
+    return ScrollablePositionedList.builder(
       itemCount: lyricsState.lines.length,
+      itemScrollController: _itemScrollController,
+      itemPositionsListener: _itemPositionsListener,
       padding: EdgeInsets.symmetric(
-        vertical: MediaQuery.of(context).size.height * 0.4,
+        vertical: MediaQuery.of(context).size.height * 0.25,
       ),
       itemBuilder: (context, index) {
         final line = lyricsState.lines[index];
@@ -106,14 +101,18 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
                 },
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 300),
-            height: _rowHeight,
+            constraints: const BoxConstraints(minHeight: _rowHeight),
             alignment: Alignment.center,
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Text(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+            child: AutoSizeText(
               line.text,
               textAlign: TextAlign.center,
+              maxLines: 2,
+              minFontSize: 12,
               style: TextStyle(
-                fontSize: isActive ? 26 : 20,
+                fontSize: isActive
+                    ? 28
+                    : 22, // Ligeramente más grande para resaltar
                 fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
                 color: isActive
                     ? Theme.of(context).colorScheme.primary

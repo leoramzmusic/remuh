@@ -34,6 +34,14 @@ class LrcParser {
       }
     }
 
+    if (lyricLines.isEmpty && lrcContent.trim().isNotEmpty) {
+      // Fallback para texto plano (estático)
+      return lines
+          .where((l) => l.trim().isNotEmpty)
+          .map((l) => LyricLine(startTime: Duration.zero, text: l.trim()))
+          .toList();
+    }
+
     // Ordenar por tiempo de inicio por seguridad
     lyricLines.sort((a, b) => a.startTime.compareTo(b.startTime));
 

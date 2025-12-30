@@ -48,20 +48,33 @@ class _LyricsEditorScreenState extends ConsumerState<LyricsEditorScreen> {
     );
 
     final timestamp = '[$m:$s.$ms] ';
-
     final text = _controller.text;
-    final selection = _controller.selection;
+    TextSelection selection = _controller.selection;
+
+    // Si no hay selección válida (ej: el TextField no ha tenido foco), insertar al final
+    if (selection.start == -1) {
+      selection = TextSelection.collapsed(offset: text.length);
+    }
+
+    // Mejorar lógica: si el cursor está en medio de una línea,
+    // buscar el inicio de la línea para insertar el tiempo ahí.
+    int insertionPos = selection.start;
+    if (insertionPos > 0 && text[insertionPos - 1] != '\n') {
+      // Retroceder hasta encontrar el inicio de la línea o el principio del texto
+      int lineStart = text.lastIndexOf('\n', insertionPos - 1);
+      insertionPos = (lineStart == -1) ? 0 : lineStart + 1;
+    }
 
     final newText = text.replaceRange(
-      selection.start,
-      selection.end,
+      insertionPos,
+      selection.end < insertionPos ? insertionPos : selection.end,
       timestamp,
     );
 
     setState(() {
       _controller.text = newText;
       _controller.selection = TextSelection.collapsed(
-        offset: selection.start + timestamp.length,
+        offset: insertionPos + timestamp.length,
       );
     });
   }
@@ -75,26 +88,25 @@ class _LyricsEditorScreenState extends ConsumerState<LyricsEditorScreen> {
         .saveLyrics(track.filePath, _controller.text);
 
     if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Letras guardadas')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Letras guardadas correctamente')),
+      );
       Navigator.pop(context);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final customization = ref.watch(customizationProvider);
-    final icons = AppIconSet.fromStyle(customization.iconStyle);
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Editor de Letras'),
         actions: [
           IconButton(
-            icon: Icon(icons.add),
+            icon: const Icon(Icons.check_circle_outline, size: 28),
             onPressed: _save,
-          ), // Usamos 'add' o guardamos? AppIconSet no tiene 'save' explícito, usaré icons.lyrics o Icons.save por ahora o añadir 'delete'/'add'
+            tooltip: 'Guardar cambios',
+          ),
+          const SizedBox(width: 8),
         ],
       ),
       body: Padding(
@@ -102,13 +114,14 @@ class _LyricsEditorScreenState extends ConsumerState<LyricsEditorScreen> {
         child: Column(
           children: [
             Text(
-              'Reproduce la música y toca el botón para insertar el tiempo actual en la línea seleccionada.',
+              'Escucha la música y pulsa el botón para sincronizar la línea actual.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
                 color: Theme.of(
                   context,
-                ).colorScheme.onSurface.withValues(alpha: 0.7),
+                ).colorScheme.onSurface.withValues(alpha: 0.8),
               ),
             ),
             const SizedBox(height: 16),
@@ -117,20 +130,28 @@ class _LyricsEditorScreenState extends ConsumerState<LyricsEditorScreen> {
                 controller: _controller,
                 maxLines: null,
                 expands: true,
-                style: const TextStyle(fontFamily: 'monospace'),
+                style: const TextStyle(fontFamily: 'monospace', fontSize: 16),
                 decoration: const InputDecoration(
                   hintText: 'Pega aquí la letra y añade tiempos...',
                   border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.all(12),
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             ElevatedButton.icon(
               onPressed: _insertTimestamp,
-              icon: const Icon(Icons.timer_outlined),
-              label: const Text('Insertar Tiempo Actual'),
+              icon: const Icon(Icons.timer_outlined, size: 28),
+              label: const Text(
+                'Insertar Tiempo Actual',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
               style: ElevatedButton.styleFrom(
-                minimumSize: const Size.fromHeight(50),
+                minimumSize: const Size.fromHeight(60),
+                backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                foregroundColor: Theme.of(
+                  context,
+                ).colorScheme.onPrimaryContainer,
               ),
             ),
           ],
