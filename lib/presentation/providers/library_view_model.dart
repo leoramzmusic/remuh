@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../domain/entities/track.dart';
 import '../../domain/usecases/scan_tracks.dart';
+import '../../domain/repositories/track_repository.dart';
 import 'audio_player_provider.dart';
 
 // Estado de la biblioteca
@@ -41,14 +42,17 @@ class LibraryState {
 final libraryViewModelProvider =
     StateNotifierProvider<LibraryViewModel, LibraryState>((ref) {
       final scanTracks = ref.watch(scanTracksUseCaseProvider);
-      return LibraryViewModel(scanTracks);
+      final trackRepository = ref.watch(trackRepositoryProvider);
+      return LibraryViewModel(scanTracks, trackRepository);
     });
 
 class LibraryViewModel extends StateNotifier<LibraryState> {
   final ScanTracks _scanTracks;
+  final TrackRepository _trackRepository;
   static const String _keyLastScanTime = 'library_last_scan_time';
 
-  LibraryViewModel(this._scanTracks) : super(LibraryState()) {
+  LibraryViewModel(this._scanTracks, this._trackRepository)
+    : super(LibraryState()) {
     _loadLastScanTime();
     // Delay scan to ensure UI is ready and avoid permission errors on startup
     // Delay scan to ensure UI is ready and avoid permission errors on startup
@@ -89,8 +93,22 @@ class LibraryViewModel extends StateNotifier<LibraryState> {
 
       await _saveLastScanTime();
 
+      // Merge with stats from database
+      final statsMap = await _trackRepository.getAllTrackStats();
+      final tracksWithStats = newTracks.map((t) {
+        final stats = statsMap[t.id];
+        if (stats != null) {
+          return t.copyWith(
+            isFavorite: stats.isFavorite,
+            playCount: stats.playCount,
+            lastPlayedAt: stats.lastPlayedAt,
+          );
+        }
+        return t;
+      }).toList();
+
       state = state.copyWith(
-        tracks: newTracks,
+        tracks: tracksWithStats,
         isScanning: false,
         lastAddedCount: added,
         lastScanTime: DateTime.now(),
@@ -120,5 +138,25 @@ class LibraryViewModel extends StateNotifier<LibraryState> {
   List<String> getAlbums() {
     return state.tracks.map((t) => t.album ?? 'Desconocido').toSet().toList()
       ..sort();
+  }
+
+  /// Obtener las 5 canciones más reproducidas
+  List<Track> getMostPlayedTracks() {
+    final playedTracks = state.tracks.where((t) => t.playCount > 0).toList();
+    playedTracks.sort((a, b) => b.playCount.compareTo(a.playCount));
+    return playedTracks.take(5).toList();
+  }
+
+  /// Obtener los 5 favoritos más recientes
+  List<Track> getRecentFavorites() {
+    final favorites = state.tracks.where((t) => t.isFavorite).toList();
+    // Podríamos ordenar por fecha de "favoriteado" si tuviéramos ese dato,
+    // por ahora usamos lastPlayedAt o simplemente los últimos 5.
+    favorites.sort(
+      (a, b) => (b.lastPlayedAt ?? DateTime(0)).compareTo(
+        a.lastPlayedAt ?? DateTime(0),
+      ),
+    );
+    return favorites.take(5).toList();
   }
 }

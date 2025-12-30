@@ -23,7 +23,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: (db, version) async {
         Logger.info('Creating database tables...');
 
@@ -46,6 +46,28 @@ class DatabaseService {
             FOREIGN KEY (playlistId) REFERENCES playlists (id) ON DELETE CASCADE
           )
         ''');
+
+        // Table for track statistics
+        await db.execute('''
+          CREATE TABLE track_stats (
+            trackId TEXT PRIMARY KEY,
+            isFavorite INTEGER DEFAULT 0,
+            playCount INTEGER DEFAULT 0,
+            lastPlayedAt TEXT
+          )
+        ''');
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await db.execute('''
+            CREATE TABLE track_stats (
+              trackId TEXT PRIMARY KEY,
+              isFavorite INTEGER DEFAULT 0,
+              playCount INTEGER DEFAULT 0,
+              lastPlayedAt TEXT
+            )
+          ''');
+        }
       },
     );
   }

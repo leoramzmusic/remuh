@@ -10,9 +10,9 @@ import '../widgets/library/genres_view.dart';
 import '../../domain/entities/playlist.dart';
 import '../providers/customization_provider.dart';
 import '../../core/theme/icon_sets.dart';
-import 'settings_screen.dart';
 import 'entity_detail_screen.dart';
 import 'player_screen.dart';
+import '../widgets/app_sidebar.dart';
 
 class LibraryScreen extends ConsumerWidget {
   const LibraryScreen({super.key});
@@ -57,18 +57,16 @@ class LibraryScreen extends ConsumerWidget {
           final isGrid = ref.watch(isGridViewProvider);
 
           return Scaffold(
+            drawer: const AppSidebar(),
             appBar: AppBar(
-              leading: Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: GestureDetector(
-                  onTap: () => _showAboutDialog(context),
-                  child: Image.asset(
-                    'assets/images/remuh_logo.png',
-                    fit: BoxFit.contain,
-                  ),
+              title: Text(
+                'REMUH',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 2,
+                  color: Theme.of(context).colorScheme.primary,
                 ),
               ),
-              title: const Text('REMUH'),
               actions: [
                 IconButton(
                   icon: Icon(
@@ -109,18 +107,6 @@ class LibraryScreen extends ConsumerWidget {
                             .read(libraryViewModelProvider.notifier)
                             .scanLibrary(),
                   tooltip: 'Actualizar biblioteca',
-                ),
-                IconButton(
-                  icon: Icon(icons.settings),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const SettingsScreen(),
-                      ),
-                    );
-                  },
-                  tooltip: 'Ajustes',
                 ),
               ],
               bottom: const TabBar(
@@ -361,24 +347,6 @@ class LibraryScreen extends ConsumerWidget {
           ),
         ],
       ),
-    );
-  }
-
-  void _showAboutDialog(BuildContext context) {
-    showAboutDialog(
-      context: context,
-      applicationName: 'REMUH',
-      applicationVersion: '1.0.0',
-      applicationIcon: SizedBox(
-        width: 60,
-        height: 60,
-        child: Image.asset('assets/images/remuh_logo.png'),
-      ),
-      children: [
-        const Text(
-          'Reproductor de música minimalista y escalable que prioriza la identidad y la experiencia del usuario.',
-        ),
-      ],
     );
   }
 }

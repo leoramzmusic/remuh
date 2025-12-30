@@ -64,7 +64,7 @@ class RemuhApp extends ConsumerWidget {
       // Temas dinámicos
       theme: AppTheme.getLightTheme(accentColor),
       darkTheme: AppTheme.getDarkTheme(accentColor),
-      themeMode: ThemeMode.system, // Seguir configuración del sistema
+      themeMode: customization.isLightTheme ? ThemeMode.light : ThemeMode.dark,
       // Pantalla inicial - MainScaffold con navegación
       home: const MainScaffold(),
     );

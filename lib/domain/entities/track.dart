@@ -8,6 +8,9 @@ class Track {
   final String? artworkPath;
   final String filePath;
   final String? fileUrl;
+  final bool isFavorite;
+  final int playCount;
+  final DateTime? lastPlayedAt;
 
   const Track({
     required this.id,
@@ -18,6 +21,9 @@ class Track {
     this.artworkPath,
     required this.filePath,
     this.fileUrl,
+    this.isFavorite = false,
+    this.playCount = 0,
+    this.lastPlayedAt,
   });
 
   Track copyWith({
@@ -29,6 +35,9 @@ class Track {
     String? artworkPath,
     String? filePath,
     String? fileUrl,
+    bool? isFavorite,
+    int? playCount,
+    DateTime? lastPlayedAt,
   }) {
     return Track(
       id: id ?? this.id,
@@ -39,6 +48,9 @@ class Track {
       artworkPath: artworkPath ?? this.artworkPath,
       filePath: filePath ?? this.filePath,
       fileUrl: fileUrl ?? this.fileUrl,
+      isFavorite: isFavorite ?? this.isFavorite,
+      playCount: playCount ?? this.playCount,
+      lastPlayedAt: lastPlayedAt ?? this.lastPlayedAt,
     );
   }
 

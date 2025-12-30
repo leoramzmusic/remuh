@@ -14,6 +14,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/permission_service.dart';
 import '../../data/datasources/local_audio_source.dart';
 
+import '../../domain/repositories/track_repository.dart';
+import '../../data/repositories/track_repository_impl.dart';
+import '../../services/database_service.dart';
+
 // Provider del servicio de audio
 // Provider del Handler (inicializado en main.dart)
 final audioHandlerProvider = Provider<AudioPlayerHandler>((ref) {
@@ -26,6 +30,15 @@ final permissionServiceProvider = Provider<PermissionService>((ref) {
 
 final localAudioSourceProvider = Provider<LocalAudioSource>((ref) {
   return LocalAudioSource();
+});
+
+final databaseServiceProvider = Provider<DatabaseService>((ref) {
+  return DatabaseService();
+});
+
+final trackRepositoryProvider = Provider<TrackRepository>((ref) {
+  final dbService = ref.watch(databaseServiceProvider);
+  return TrackRepositoryImpl(dbService);
 });
 
 // Provider del repositorio
@@ -158,6 +171,7 @@ class AudioPlayerState {
 /// Notifier del reproductor de audio
 class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
   final AudioRepository _repository;
+  final TrackRepository _trackRepository;
   final LoadTrack _loadTrack;
   final PlayAudio _playAudio;
   final PauseAudio _pauseAudio;
@@ -165,6 +179,7 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
 
   AudioPlayerNotifier(
     this._repository,
+    this._trackRepository,
     this._loadTrack,
     this._playAudio,
     this._pauseAudio,
@@ -219,6 +234,12 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
 
       // Auto-avance con nuestra lógica personalizada
       if (playbackState == PlaybackState.completed) {
+        // Analytics: increment play count
+        final currentTrackId = state.currentTrack?.id;
+        if (currentTrackId != null) {
+          _trackRepository.incrementPlayCount(currentTrackId);
+          // Opcionalmente refrescar la biblioteca para que el UI vea el cambio
+        }
         skipToNext();
       }
 
@@ -524,12 +545,44 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
       }
     }
   }
+
+  /// Toggle favorite status of a track
+  Future<void> toggleFavorite(Track track) async {
+    final bool newFavoriteStatus = !track.isFavorite;
+    try {
+      await _trackRepository.toggleFavorite(track.id, newFavoriteStatus);
+
+      // Update local state if the track being toggled is the current one
+      if (state.currentTrack?.id == track.id) {
+        state = state.copyWith(
+          currentTrack: state.currentTrack?.copyWith(
+            isFavorite: newFavoriteStatus,
+          ),
+        );
+      }
+
+      // We should also update it in the queue if it's there
+      final newQueue = state.queue.map((t) {
+        if (t.id == track.id) {
+          return t.copyWith(isFavorite: newFavoriteStatus);
+        }
+        return t;
+      }).toList();
+
+      state = state.copyWith(queue: newQueue);
+
+      // Note: Ideally LibraryViewModel should also be notified or refreshed.
+    } catch (e) {
+      Logger.error('Error toggling favorite', e);
+    }
+  }
 }
 
 // Provider del estado del reproductor
 final audioPlayerProvider =
     StateNotifierProvider<AudioPlayerNotifier, AudioPlayerState>((ref) {
       final repository = ref.watch(audioRepositoryProvider);
+      final trackRepository = ref.watch(trackRepositoryProvider);
       final loadTrack = ref.watch(loadTrackUseCaseProvider);
       final playAudio = ref.watch(playAudioUseCaseProvider);
       final pauseAudio = ref.watch(pauseAudioUseCaseProvider);
@@ -537,6 +590,7 @@ final audioPlayerProvider =
 
       return AudioPlayerNotifier(
         repository,
+        trackRepository,
         loadTrack,
         playAudio,
         pauseAudio,
