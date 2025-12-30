@@ -38,7 +38,7 @@ class _LyricsEditorScreenState extends ConsumerState<LyricsEditorScreen> {
     }
   }
 
-  void _insertTimestamp() {
+  void _syncNextLine() {
     final position = ref.read(audioPlayerProvider).position;
     final m = position.inMinutes.toString().padLeft(2, '0');
     final s = (position.inSeconds % 60).toString().padLeft(2, '0');
@@ -46,37 +46,44 @@ class _LyricsEditorScreenState extends ConsumerState<LyricsEditorScreen> {
       2,
       '0',
     );
+    final timestamp = '[$m:$s.$ms]';
 
-    final timestamp = '[$m:$s.$ms] ';
     final text = _controller.text;
-    TextSelection selection = _controller.selection;
+    // Split keeping newlines to preserve structure accurately if needed,
+    // but standard split is easier.
+    final lines = text.split('\n');
 
-    // Si no hay selección válida (ej: el TextField no ha tenido foco), insertar al final
-    if (selection.start == -1) {
-      selection = TextSelection.collapsed(offset: text.length);
+    // Regex para detectar si la línea YA empieza con timestamp [00:00.00]
+    final regex = RegExp(r'^\s*\[\d{2}:\d{2}\.\d{2}\]');
+
+    int targetIndex = -1;
+    for (int i = 0; i < lines.length; i++) {
+      // Ignoramos líneas vacías, o sincronizamos? Mejor saltar vacías.
+      if (lines[i].trim().isNotEmpty && !regex.hasMatch(lines[i])) {
+        targetIndex = i;
+        break;
+      }
     }
 
-    // Mejorar lógica: si el cursor está en medio de una línea,
-    // buscar el inicio de la línea para insertar el tiempo ahí.
-    int insertionPos = selection.start;
-    if (insertionPos > 0 && text[insertionPos - 1] != '\n') {
-      // Retroceder hasta encontrar el inicio de la línea o el principio del texto
-      int lineStart = text.lastIndexOf('\n', insertionPos - 1);
-      insertionPos = (lineStart == -1) ? 0 : lineStart + 1;
+    if (targetIndex != -1) {
+      final oldLine = lines[targetIndex];
+      lines[targetIndex] = '$timestamp ${oldLine.trimLeft()}';
+
+      final newText = lines.join('\n');
+
+      setState(() {
+        _controller.text = newText;
+        // Opcional: Mover scroll/cursor a la siguiente línea
+      });
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('¡Todas las líneas están sincronizadas!'),
+          ),
+        );
+      }
     }
-
-    final newText = text.replaceRange(
-      insertionPos,
-      selection.end < insertionPos ? insertionPos : selection.end,
-      timestamp,
-    );
-
-    setState(() {
-      _controller.text = newText;
-      _controller.selection = TextSelection.collapsed(
-        offset: insertionPos + timestamp.length,
-      );
-    });
   }
 
   Future<void> _autoSync() async {
@@ -190,9 +197,9 @@ class _LyricsEditorScreenState extends ConsumerState<LyricsEditorScreen> {
               children: [
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: _isLoadingSync ? null : _insertTimestamp,
-                    icon: const Icon(Icons.timer_outlined),
-                    label: const Text('Insertar Tiempo'),
+                    onPressed: _isLoadingSync ? null : _syncNextLine,
+                    icon: const Icon(Icons.touch_app_outlined),
+                    label: const Text('Sincronizar (Karaoke)'),
                     style: ElevatedButton.styleFrom(
                       minimumSize: const Size.fromHeight(50),
                     ),

@@ -91,126 +91,156 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     // Listeners for side effects (background color, artwork precache, page controller)
     _setupListeners(queue);
 
-    return Scaffold(
-      backgroundColor: Colors.black, // Dark mode strict
-      body: Stack(
-        children: [
-          // Gradient Background
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: _backgroundColors ?? [Colors.black, Colors.black],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-              ),
-            ),
-          ),
-          // Subtle overlay to ensure text readability if needed, or rely on dark colors
-          Container(color: Colors.black.withValues(alpha: 0.3)),
-          Column(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _buildTopBar(context, currentTrack),
-              Expanded(
-                child: _buildMiddleSection(
-                  context,
-                  currentTrack,
-                  queue,
-                  currentIndex,
-                  isPlaying,
-                  hasNext,
-                  hasPrevious,
-                  repeatMode,
-                  shuffleMode,
+    return WillPopScope(
+      onWillPop: () async {
+        if (_showLyrics) {
+          setState(() {
+            _showLyrics = false;
+          });
+          return false; // Don't pop data, just close lyrics
+        }
+        return true; // Pop screen
+      },
+      child: Scaffold(
+        backgroundColor: Colors.black, // Dark mode strict
+        body: Stack(
+          children: [
+            // Gradient Background
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: _backgroundColors ?? [Colors.black, Colors.black],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
                 ),
               ),
-              _buildBottomBar(context, currentTrack),
-            ],
-          ),
+            ),
+            // Subtle overlay to ensure text readability if needed, or rely on dark colors
+            Container(color: Colors.black.withOpacity(0.3)),
+            Column(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _buildTopBar(context, currentTrack),
+                Expanded(
+                  child: _buildMiddleSection(
+                    context,
+                    currentTrack,
+                    queue,
+                    currentIndex,
+                    isPlaying,
+                    hasNext,
+                    hasPrevious,
+                    repeatMode,
+                    shuffleMode,
+                  ),
+                ),
+                _buildBottomBar(context, currentTrack),
+              ],
+            ),
 
-          // Lyrics Layer (Draggable Sheet)
-          if (_showLyrics)
-            TweenAnimationBuilder<double>(
-              duration: const Duration(milliseconds: 400),
-              tween: Tween(begin: 0.0, end: 1.0),
-              curve: Curves.easeOut,
-              builder: (context, value, child) {
-                return Opacity(opacity: value, child: child);
-              },
-              child: NotificationListener<DraggableScrollableNotification>(
-                onNotification: (notification) {
-                  if (notification.extent == 0.0) {
-                    setState(() {
-                      _showLyrics = false;
-                    });
-                  }
-                  return true;
-                },
-                child: DraggableScrollableSheet(
-                  initialChildSize: 0.5,
-                  minChildSize: 0.0,
-                  maxChildSize: 0.95,
-                  snap: true,
-                  snapSizes: const [0.0, 0.5, 0.95],
-                  builder: (context, scrollController) {
-                    return Container(
-                      decoration: const BoxDecoration(
-                        borderRadius: BorderRadius.vertical(
-                          top: Radius.circular(32),
+            // Persistent Lyrics Layer (Stack-based)
+            if (_showLyrics)
+              Positioned.fill(
+                child: Stack(
+                  children: [
+                    // Barrier (Tap to close)
+                    GestureDetector(
+                      onTap: () => setState(() => _showLyrics = false),
+                      child: Container(color: Colors.black.withOpacity(0.3)),
+                    ),
+                    // Draggable Sheet
+                    TweenAnimationBuilder<double>(
+                      duration: const Duration(milliseconds: 300),
+                      tween: Tween(begin: 0.0, end: 1.0),
+                      curve: Curves.easeOut,
+                      builder: (context, value, child) {
+                        return Transform.translate(
+                          offset: Offset(
+                            0,
+                            50 * (1 - value),
+                          ), // Slide up effect
+                          child: Opacity(opacity: value, child: child),
+                        );
+                      },
+                      child: NotificationListener<DraggableScrollableNotification>(
+                        onNotification: (notification) {
+                          if (notification.extent < 0.25) {
+                            // Close if dragged too low
+                            setState(() {
+                              _showLyrics = false;
+                            });
+                          }
+                          return true;
+                        },
+                        child: DraggableScrollableSheet(
+                          initialChildSize: 0.5,
+                          minChildSize: 0.0,
+                          maxChildSize: 1.0, // Full persistent height!
+                          expand:
+                              true, // Use expand: true inside Stack for full height
+                          snap: true,
+                          snapSizes: const [0.5, 1.0],
+                          builder: (context, scrollController) {
+                            return Container(
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).scaffoldBackgroundColor
+                                    .withOpacity(0.5), // Semi-transparent
+                                borderRadius: const BorderRadius.vertical(
+                                  top: Radius.circular(24),
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.3),
+                                    blurRadius: 20,
+                                    spreadRadius: 5,
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                children: [
+                                  Expanded(
+                                    child: Stack(
+                                      children: [
+                                        LyricsView(
+                                          scrollController: scrollController,
+                                        ),
+                                        // Actions
+                                        Positioned(
+                                          top: 0,
+                                          right: 16,
+                                          child: IconButton(
+                                            icon: const Icon(Icons.more_vert),
+                                            onPressed: () {
+                                              if (currentTrack != null) {
+                                                showModalBottomSheet(
+                                                  context: context,
+                                                  isScrollControlled: true,
+                                                  backgroundColor:
+                                                      Colors.transparent,
+                                                  builder: (context) =>
+                                                      LyricsActionsSheet(
+                                                        track: currentTrack,
+                                                      ),
+                                                );
+                                              }
+                                            },
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
                         ),
                       ),
-                      clipBehavior: Clip.antiAlias,
-                      child: Stack(
-                        children: [
-                          LyricsView(
-                            scrollController: scrollController,
-                            opacity: 0.7, // Higher opacity for sheet mode
-                          ),
-                          // Handle (Pill)
-                          Align(
-                            alignment: Alignment.topCenter,
-                            child: Container(
-                              margin: const EdgeInsets.only(top: 12),
-                              width: 36,
-                              height: 4,
-                              decoration: BoxDecoration(
-                                color: Colors.white24,
-                                borderRadius: BorderRadius.circular(2),
-                              ),
-                            ),
-                          ),
-                          // More Actions for Lyrics
-                          if (currentTrack != null)
-                            Align(
-                              alignment: Alignment.topRight,
-                              child: Padding(
-                                padding: const EdgeInsets.all(8.0),
-                                child: IconButton(
-                                  icon: const Icon(
-                                    Icons.more_vert,
-                                    color: Colors.white70,
-                                  ),
-                                  onPressed: () {
-                                    showModalBottomSheet(
-                                      context: context,
-                                      isScrollControlled: true,
-                                      backgroundColor: Colors.transparent,
-                                      builder: (context) => LyricsActionsSheet(
-                                        track: currentTrack,
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    );
-                  },
+                    ),
+                  ],
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -252,7 +282,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     color: Colors.white,
                     size: 28,
                   ),
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () => Navigator.pop(
+                    context,
+                  ), // Normal pop, WillPopScope handles if lyrics open
                 ),
               ),
 
@@ -390,7 +422,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 color: Colors.white,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.white.withValues(alpha: 0.2),
+                    color: Colors.white.withOpacity(0.2),
                     blurRadius: 10,
                     spreadRadius: 2,
                   ),
@@ -490,7 +522,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     initialChildSize: 0.6,
                     minChildSize: 0.4,
                     maxChildSize: 0.95,
-                    expand: false,
+                    expand: false, // For queue, false is fine inside modal
                     builder: (context, scrollController) {
                       return QueueScreen(scrollController: scrollController);
                     },

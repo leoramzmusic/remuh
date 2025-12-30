@@ -74,7 +74,7 @@ class AudioRepositoryImpl implements AudioRepository {
       });
 
   @override
-  Stream<Duration> get positionStream => as_lib.AudioService.position;
+  Stream<Duration> get positionStream => _audioHandler.positionStream;
 
   @override
   Stream<Duration?> get durationStream =>
