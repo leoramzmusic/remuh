@@ -2,17 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:async';
 import '../../domain/entities/track.dart';
-import '../../domain/repositories/audio_repository.dart';
 
 import '../providers/audio_player_provider.dart';
-import '../widgets/secondary_actions.dart';
-import '../widgets/progress_bar.dart';
 import '../widgets/track_artwork.dart';
+import '../widgets/progress_bar.dart';
 import 'queue_screen.dart';
 import '../widgets/lyrics_view.dart';
 import '../providers/library_view_model.dart';
 import 'entity_detail_screen.dart';
 import '../../core/services/color_extraction_service.dart';
+import 'package:flutter/services.dart';
+import '../widgets/track_actions_sheet.dart';
+import '../../domain/repositories/audio_repository.dart';
 
 /// Pantalla principal del reproductor - Rediseñada
 class PlayerScreen extends ConsumerStatefulWidget {
@@ -108,7 +109,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           Column(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _buildTopBar(context),
+              _buildTopBar(context, currentTrack),
               Expanded(
                 child: _buildMiddleSection(
                   context,
@@ -196,52 +197,72 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   // 1. TopBar
-  Widget _buildTopBar(BuildContext context) {
+  Widget _buildTopBar(BuildContext context, Track? currentTrack) {
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            IconButton(
-              icon: const Icon(
-                Icons.keyboard_arrow_down,
-                color: Colors.white,
-                size: 28,
+        child: SizedBox(
+          height: 48,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Back Button
+              Align(
+                alignment: Alignment.centerLeft,
+                child: IconButton(
+                  icon: const Icon(
+                    Icons.keyboard_arrow_down,
+                    color: Colors.white,
+                    size: 28,
+                  ),
+                  onPressed: () => Navigator.pop(context),
+                ),
               ),
-              onPressed: () => Navigator.pop(context),
-            ),
-            Row(
-              children: [
-                IconButton(
-                  icon: Icon(
-                    _showLyrics ? Icons.lyrics : Icons.lyrics_outlined,
+
+              // Centered Lyrics Button
+              TextButton(
+                onPressed: () => setState(() => _showLyrics = !_showLyrics),
+                child: Text(
+                  'Lyrics',
+                  style: TextStyle(
                     color: _showLyrics
                         ? Theme.of(context).colorScheme.primary
                         : Colors.white,
-                    size: 24,
+                    fontSize: 18,
+                    fontWeight: _showLyrics ? FontWeight.bold : FontWeight.w500,
                   ),
-                  onPressed: () => setState(() => _showLyrics = !_showLyrics),
                 ),
-                IconButton(
+              ),
+
+              // More Actions Button
+              Align(
+                alignment: Alignment.centerRight,
+                child: IconButton(
                   icon: const Icon(
                     Icons.more_vert,
                     color: Colors.white,
                     size: 24,
                   ),
                   onPressed: () {
-                    showModalBottomSheet(
-                      context: context,
-                      backgroundColor: const Color(0xFF2D2D2D),
-                      builder: (_) => const SecondaryActions(),
-                    );
+                    if (currentTrack != null) {
+                      _showTrackActions(context, currentTrack);
+                    }
                   },
                 ),
-              ],
-            ),
-          ],
+              ),
+            ],
+          ),
         ),
       ),
+    );
+  }
+
+  void _showTrackActions(BuildContext context, Track track) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => TrackActionsSheet(track: track),
     );
   }
 
@@ -413,9 +434,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               tooltip: 'Album Songs',
             ),
             IconButton(
-              icon: Icon(
-                Icons.queue_music,
-                color: Theme.of(context).colorScheme.onSurface,
+              icon: const Icon(
+                Icons.keyboard_arrow_up,
+                color: Colors.white,
+                size: 28,
               ),
               onPressed: () {
                 showModalBottomSheet(
