@@ -15,6 +15,7 @@ class AppTheme {
   }) {
     final fontFamily = _getFontFamily(typography);
     final hWeight = _getFontWeight(headerWeight);
+    final onPrimaryColor = _getOnColor(primaryColor);
 
     return ThemeData(
       useMaterial3: true,
@@ -22,9 +23,9 @@ class AppTheme {
       splashFactory: InkRipple.splashFactory,
       colorScheme: ColorScheme.dark(
         primary: primaryColor,
-        onPrimary: Colors.white,
+        onPrimary: onPrimaryColor,
         secondary: primaryColor,
-        onSecondary: Colors.white,
+        onSecondary: onPrimaryColor,
         surface: AppColors.darkSurface,
         onSurface: AppColors.darkOnSurface,
         surfaceContainerHighest: AppColors.darkSurfaceVariant,
@@ -34,7 +35,6 @@ class AppTheme {
         outline: Colors.white24,
       ),
       scaffoldBackgroundColor: AppColors.darkBackground,
-      dialogBackgroundColor: AppColors.darkSurface,
 
       // Tipografía
       fontFamily: fontFamily,
@@ -91,7 +91,7 @@ class AppTheme {
         style:
             ElevatedButton.styleFrom(
               backgroundColor: primaryColor,
-              foregroundColor: Colors.white,
+              foregroundColor: onPrimaryColor,
               elevation: 0,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -99,8 +99,9 @@ class AppTheme {
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             ).copyWith(
               backgroundColor: WidgetStateProperty.resolveWith((states) {
-                if (states.contains(WidgetState.disabled))
+                if (states.contains(WidgetState.disabled)) {
                   return Colors.white10;
+                }
                 if (states.contains(WidgetState.pressed)) {
                   return primaryColor.withValues(alpha: 0.8);
                 }
@@ -118,8 +119,9 @@ class AppTheme {
               ),
             ).copyWith(
               foregroundColor: WidgetStateProperty.resolveWith((states) {
-                if (states.contains(WidgetState.disabled))
+                if (states.contains(WidgetState.disabled)) {
                   return Colors.white30;
+                }
                 return primaryColor;
               }),
             ),
@@ -251,7 +253,7 @@ class AppTheme {
         thumbColor: primaryColor,
         overlayColor: primaryColor.withValues(alpha: 0.2),
         valueIndicatorColor: primaryColor,
-        valueIndicatorTextStyle: const TextStyle(color: Colors.white),
+        valueIndicatorTextStyle: TextStyle(color: onPrimaryColor),
       ),
 
       inputDecorationTheme: InputDecorationTheme(
@@ -280,6 +282,18 @@ class AppTheme {
         indent: 16,
         endIndent: 16,
       ),
+
+      chipTheme: ChipThemeData(
+        backgroundColor: Colors.white10,
+        selectedColor: primaryColor,
+        secondarySelectedColor: primaryColor,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        labelStyle: const TextStyle(color: Colors.white70),
+        secondaryLabelStyle: TextStyle(color: onPrimaryColor),
+        brightness: Brightness.dark,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        side: BorderSide.none,
+      ),
     );
   }
 
@@ -291,6 +305,7 @@ class AppTheme {
   }) {
     final fontFamily = _getFontFamily(typography);
     final hWeight = _getFontWeight(headerWeight);
+    final onPrimaryColor = _getOnColor(primaryColor);
 
     return ThemeData(
       useMaterial3: true,
@@ -298,9 +313,9 @@ class AppTheme {
       splashFactory: InkRipple.splashFactory,
       colorScheme: ColorScheme.light(
         primary: primaryColor,
-        onPrimary: Colors.white,
+        onPrimary: onPrimaryColor,
         secondary: primaryColor,
-        onSecondary: Colors.white,
+        onSecondary: onPrimaryColor,
         surface: AppColors.lightSurface,
         onSurface: AppColors.lightOnSurface,
         surfaceContainerHighest: AppColors.lightSurfaceVariant,
@@ -310,7 +325,6 @@ class AppTheme {
         outline: Colors.black12,
       ),
       scaffoldBackgroundColor: AppColors.lightBackground,
-      dialogBackgroundColor: AppColors.lightSurface,
 
       // Tipografía
       fontFamily: fontFamily,
@@ -367,7 +381,7 @@ class AppTheme {
         style:
             ElevatedButton.styleFrom(
               backgroundColor: primaryColor,
-              foregroundColor: Colors.white,
+              foregroundColor: onPrimaryColor,
               elevation: 2,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -375,8 +389,9 @@ class AppTheme {
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             ).copyWith(
               backgroundColor: WidgetStateProperty.resolveWith((states) {
-                if (states.contains(WidgetState.disabled))
+                if (states.contains(WidgetState.disabled)) {
                   return Colors.grey.shade300;
+                }
                 if (states.contains(WidgetState.pressed)) {
                   return primaryColor.withValues(alpha: 0.8);
                 }
@@ -394,8 +409,9 @@ class AppTheme {
               ),
             ).copyWith(
               foregroundColor: WidgetStateProperty.resolveWith((states) {
-                if (states.contains(WidgetState.disabled))
+                if (states.contains(WidgetState.disabled)) {
                   return Colors.grey.shade400;
+                }
                 return primaryColor;
               }),
             ),
@@ -499,16 +515,18 @@ class AppTheme {
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) return primaryColor;
-          if (states.contains(WidgetState.disabled))
+          if (states.contains(WidgetState.disabled)) {
             return Colors.grey.shade300;
+          }
           return Colors.grey.shade400;
         }),
         trackColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
             return primaryColor.withValues(alpha: 0.5);
           }
-          if (states.contains(WidgetState.disabled))
+          if (states.contains(WidgetState.disabled)) {
             return Colors.grey.shade200;
+          }
           return Colors.black12;
         }),
       ),
@@ -535,7 +553,7 @@ class AppTheme {
         thumbColor: primaryColor,
         overlayColor: primaryColor.withValues(alpha: 0.2),
         valueIndicatorColor: primaryColor,
-        valueIndicatorTextStyle: const TextStyle(color: Colors.white),
+        valueIndicatorTextStyle: TextStyle(color: onPrimaryColor),
       ),
 
       inputDecorationTheme: InputDecorationTheme(
@@ -563,6 +581,18 @@ class AppTheme {
         thickness: 1,
         indent: 16,
         endIndent: 16,
+      ),
+
+      chipTheme: ChipThemeData(
+        backgroundColor: Colors.black.withValues(alpha: 0.05),
+        selectedColor: primaryColor,
+        secondarySelectedColor: primaryColor,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        labelStyle: const TextStyle(color: Colors.black87),
+        secondaryLabelStyle: TextStyle(color: onPrimaryColor),
+        brightness: Brightness.light,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        side: BorderSide.none,
       ),
     );
   }
@@ -598,5 +628,10 @@ class AppTheme {
       HeaderWeight.semiBold => FontWeight.w600,
       HeaderWeight.bold => FontWeight.w700,
     };
+  }
+
+  /// Determina si un color es claro u oscuro para elegir el color de texto
+  static Color _getOnColor(Color color) {
+    return color.computeLuminance() > 0.7 ? Colors.black87 : Colors.white;
   }
 }

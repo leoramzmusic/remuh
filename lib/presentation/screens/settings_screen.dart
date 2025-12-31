@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/app_constants.dart';
+import 'equalizer_screen.dart';
 import 'personalization_settings_screen.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -49,7 +50,14 @@ class SettingsScreen extends ConsumerWidget {
             icon: Icons.music_note_rounded,
             title: 'Audio',
             subtitle: 'Crossfade, sin pausas, ecualizador, repetir',
-            onTap: () => _navigateToPlaceholder(context, 'Audio'),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const EqualizerScreen(),
+                ),
+              );
+            },
           ),
           _SettingsTile(
             icon: Icons.album_rounded,

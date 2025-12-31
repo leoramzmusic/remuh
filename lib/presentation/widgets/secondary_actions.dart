@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/audio_player_provider.dart';
 import '../providers/favorites_provider.dart';
 import '../screens/queue_screen.dart';
+import 'equalizer_sheet.dart';
 import 'package:share_plus/share_plus.dart';
 
 /// Widget for secondary action buttons in player screen
@@ -109,8 +110,11 @@ class SecondaryActions extends ConsumerWidget {
             icon: Icons.equalizer_rounded,
             label: 'EQ',
             onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Ecualizador próximamente')),
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (context) => const EqualizerSheet(),
               );
             },
           ),

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../presentation/widgets/equalizer_sheet.dart';
+
 import 'dart:async';
 import '../../domain/entities/track.dart';
 
@@ -497,6 +499,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 }
               },
               tooltip: 'Album Songs',
+            ),
+            IconButton(
+              icon: const Icon(Icons.tune, color: Colors.white),
+              onPressed: () {
+                showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true,
+                  backgroundColor: Colors.transparent,
+                  builder: (context) => const EqualizerSheet(),
+                );
+              },
+              tooltip: 'Equalizer',
             ),
             IconButton(
               icon: const Icon(

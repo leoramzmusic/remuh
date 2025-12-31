@@ -174,4 +174,6 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler {
       await _player.shuffle();
     }
   }
+
+  int? get androidAudioSessionId => _player.androidAudioSessionId;
 }

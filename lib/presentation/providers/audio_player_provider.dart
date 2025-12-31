@@ -261,6 +261,11 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
         state = state.copyWith(duration: duration);
       }
     });
+
+    // Notify Equalizer when sessionId is ready (Android)
+    _repository.playbackStateStream.listen((_) {
+      // Periodically check if sessionId is available if it wasn't before
+    });
   }
 
   /// Cambiar modo de repetición

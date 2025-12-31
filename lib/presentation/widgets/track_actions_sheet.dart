@@ -6,6 +6,7 @@ import '../providers/audio_player_provider.dart';
 import '../providers/library_view_model.dart';
 import '../screens/entity_detail_screen.dart';
 import 'track_artwork.dart';
+import 'equalizer_sheet.dart';
 
 class TrackActionsSheet extends ConsumerWidget {
   final Track track;
@@ -135,6 +136,19 @@ class TrackActionsSheet extends ConsumerWidget {
                     onTap: () {
                       Navigator.pop(context);
                       ref.read(audioPlayerProvider.notifier).playNext(track);
+                    },
+                  ),
+                  _ActionItem(
+                    icon: Icons.equalizer,
+                    label: 'Ecualizador',
+                    onTap: () {
+                      Navigator.pop(context);
+                      showModalBottomSheet(
+                        context: context,
+                        isScrollControlled: true,
+                        backgroundColor: Colors.transparent,
+                        builder: (context) => const EqualizerSheet(),
+                      );
                     },
                   ),
                   _ActionItem(
