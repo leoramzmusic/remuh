@@ -51,7 +51,10 @@ class PersonalizationSettingsScreen extends ConsumerWidget {
                 context: context,
                 builder: (context) => ColorSelectionDialog(
                   currentColorName: customization.colorName,
+                  customColor: customization.customColor,
                   onColorSelected: (name) => notifier.setColor(name),
+                  onCustomColorSelected: (color) =>
+                      notifier.setCustomColor(color),
                 ),
               );
             },
@@ -157,25 +160,6 @@ class PersonalizationSettingsScreen extends ConsumerWidget {
             value: customization.isAdaptiveBackground,
             onChanged: notifier.setAdaptiveBackground,
           ),
-
-          const Divider(),
-          _SectionHeader(title: 'Servicios Externos'),
-          ListTile(
-            leading: const Icon(Icons.vpn_key_rounded),
-            title: const Text('Genius API Token'),
-            subtitle: const Text('Búsqueda de letras automática'),
-            onTap: () =>
-                _showTokenDialog(context, ref, customization.geniusToken),
-            trailing: Icon(
-              customization.geniusToken.isEmpty
-                  ? Icons.warning_amber_rounded
-                  : Icons.check_circle_outline_rounded,
-              color: customization.geniusToken.isEmpty
-                  ? Colors.orange
-                  : Colors.green,
-            ),
-          ),
-          const SizedBox(height: 24),
         ],
       ),
     );
@@ -245,9 +229,12 @@ class PersonalizationSettingsScreen extends ConsumerWidget {
 
   String _getHeaderWeightName(HeaderWeight weight) {
     return switch (weight) {
-      HeaderWeight.bold => 'NEGRITA',
+      HeaderWeight.thin => 'DELGADA',
+      HeaderWeight.light => 'LIGERA',
       HeaderWeight.normal => 'NORMAL',
-      HeaderWeight.light => 'FINA',
+      HeaderWeight.medium => 'MEDIA',
+      HeaderWeight.semiBold => 'SEMI NEGRITA',
+      HeaderWeight.bold => 'NEGRITA',
     };
   }
 

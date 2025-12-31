@@ -15,6 +15,7 @@ import '../../core/services/color_extraction_service.dart';
 import '../widgets/track_actions_sheet.dart';
 import '../widgets/lyrics_actions_sheet.dart';
 import '../../domain/repositories/audio_repository.dart';
+import '../widgets/shuffle_indicator.dart';
 
 /// Pantalla principal del reproductor - Rediseñada
 class PlayerScreen extends ConsumerStatefulWidget {
@@ -397,12 +398,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
             IconButton(
-              icon: Icon(
-                Icons.shuffle,
-                color: shuffleMode
-                    ? Theme.of(context).colorScheme.primary
-                    : Colors.white54,
-              ),
+              icon: ShuffleIndicator(isActive: shuffleMode, size: 24),
               onPressed: () =>
                   ref.read(audioPlayerProvider.notifier).toggleShuffle(),
             ),

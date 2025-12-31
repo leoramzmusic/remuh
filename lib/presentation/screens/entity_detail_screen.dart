@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/entities/track.dart';
 import '../providers/audio_player_provider.dart';
 import '../widgets/track_artwork.dart';
+import '../widgets/track_contextual_menu.dart';
+import '../widgets/shuffle_indicator.dart';
+import 'player_screen.dart';
 
 class EntityDetailScreen extends ConsumerWidget {
   final String title;
@@ -34,12 +37,11 @@ class EntityDetailScreen extends ConsumerWidget {
                           final isShuffleActive = ref.watch(
                             audioPlayerProvider.select((s) => s.shuffleMode),
                           );
-                          return Icon(
-                            Icons.shuffle,
+                          return ShuffleIndicator(
+                            isActive: isShuffleActive,
                             size: 28,
-                            color: isShuffleActive
-                                ? Colors.orangeAccent
-                                : Colors.white,
+                            activeColor: Colors.orangeAccent,
+                            inactiveColor: Colors.white,
                           );
                         },
                       ),
@@ -80,7 +82,16 @@ class EntityDetailScreen extends ConsumerWidget {
                   onTap: () {
                     ref
                         .read(audioPlayerProvider.notifier)
-                        .loadPlaylist(tracks, index - 1);
+                        .playTrackManually(tracks, index - 1);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const PlayerScreen(),
+                      ),
+                    );
+                  },
+                  onLongPress: () {
+                    TrackContextualMenu.show(context, ref, track, tracks);
                   },
                 );
               },

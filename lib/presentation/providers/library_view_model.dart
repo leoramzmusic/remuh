@@ -3,6 +3,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../domain/entities/track.dart';
 import '../../domain/usecases/scan_tracks.dart';
 import '../../domain/repositories/track_repository.dart';
+import '../../domain/repositories/audio_repository.dart';
+import '../../core/utils/logger.dart';
 import 'audio_player_provider.dart';
 
 // Estado de la biblioteca
@@ -43,16 +45,29 @@ final libraryViewModelProvider =
     StateNotifierProvider<LibraryViewModel, LibraryState>((ref) {
       final scanTracks = ref.watch(scanTracksUseCaseProvider);
       final trackRepository = ref.watch(trackRepositoryProvider);
-      return LibraryViewModel(scanTracks, trackRepository);
+      final audioRepository = ref.watch(audioRepositoryProvider);
+      final audioPlayer = ref.watch(audioPlayerProvider.notifier);
+      return LibraryViewModel(
+        scanTracks,
+        trackRepository,
+        audioRepository,
+        audioPlayer,
+      );
     });
 
 class LibraryViewModel extends StateNotifier<LibraryState> {
   final ScanTracks _scanTracks;
   final TrackRepository _trackRepository;
+  final AudioRepository _audioRepository;
+  final AudioPlayerNotifier _audioPlayer;
   static const String _keyLastScanTime = 'library_last_scan_time';
 
-  LibraryViewModel(this._scanTracks, this._trackRepository)
-    : super(LibraryState()) {
+  LibraryViewModel(
+    this._scanTracks,
+    this._trackRepository,
+    this._audioRepository,
+    this._audioPlayer,
+  ) : super(LibraryState()) {
     _loadLastScanTime();
     // Delay scan to ensure UI is ready and avoid permission errors on startup
     // Delay scan to ensure UI is ready and avoid permission errors on startup
@@ -93,22 +108,38 @@ class LibraryViewModel extends StateNotifier<LibraryState> {
 
       await _saveLastScanTime();
 
-      // Merge with stats from database
+      // Merge with stats and overrides
       final statsMap = await _trackRepository.getAllTrackStats();
-      final tracksWithStats = newTracks.map((t) {
+      final overridesMap = await _trackRepository.getAllTrackOverrides();
+
+      final tracksWithMetadata = newTracks.map((t) {
+        Track updated = t;
+
+        // 1. Aplicar Estadísticas
         final stats = statsMap[t.id];
         if (stats != null) {
-          return t.copyWith(
+          updated = updated.copyWith(
             isFavorite: stats.isFavorite,
             playCount: stats.playCount,
             lastPlayedAt: stats.lastPlayedAt,
           );
         }
-        return t;
+
+        // 2. Aplicar Overrides (Ediciones del usuario)
+        final overrides = overridesMap[t.id];
+        if (overrides != null) {
+          updated = updated.copyWith(
+            title: overrides['title'] as String?,
+            artist: overrides['artist'] as String?,
+            album: overrides['album'] as String?,
+          );
+        }
+
+        return updated;
       }).toList();
 
       state = state.copyWith(
-        tracks: tracksWithStats,
+        tracks: tracksWithMetadata,
         isScanning: false,
         lastAddedCount: added,
         lastScanTime: DateTime.now(),
@@ -158,5 +189,51 @@ class LibraryViewModel extends StateNotifier<LibraryState> {
       ),
     );
     return favorites.take(5).toList();
+  }
+
+  /// Editar metadatos de una pista
+  Future<void> editTrack(String trackId, Map<String, dynamic> metadata) async {
+    try {
+      await _trackRepository.updateTrackMetadata(trackId, metadata);
+      // Actualizar estado local inmediatamente
+      state = state.copyWith(
+        tracks: state.tracks.map((t) {
+          if (t.id == trackId) {
+            return t.copyWith(
+              title: metadata['title'] as String?,
+              artist: metadata['artist'] as String?,
+              album: metadata['album'] as String?,
+            );
+          }
+          return t;
+        }).toList(),
+      );
+      // Sincronizar con el reproductor
+      _audioPlayer.refreshTrackMetadata(trackId, metadata);
+    } catch (e) {
+      Logger.error('Error editing track', e);
+    }
+  }
+
+  /// Borrar pista permanentemente
+  Future<bool> deleteTrack(Track track) async {
+    try {
+      final success = await _audioRepository.deleteTrackFile(track);
+      if (success) {
+        // Limpiar base de datos
+        await _trackRepository.deleteTrackData(track.id);
+        // Actualizar UI
+        state = state.copyWith(
+          tracks: state.tracks.where((t) => t.id != track.id).toList(),
+        );
+        // Sincronizar con el reproductor
+        _audioPlayer.notifyTrackDeleted(track.id);
+        return true;
+      }
+      return false;
+    } catch (e) {
+      Logger.error('Error deleting track', e);
+      return false;
+    }
   }
 }

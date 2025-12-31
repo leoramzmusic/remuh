@@ -67,4 +67,50 @@ class TrackRepositoryImpl implements TrackRepository {
       ),
     );
   }
+
+  @override
+  Future<void> updateTrackMetadata(
+    String trackId,
+    Map<String, dynamic> metadata,
+  ) async {
+    final db = await _dbService.database;
+    final row = Map<String, dynamic>.from(metadata);
+    row['trackId'] = trackId;
+
+    await db.insert(
+      'track_overrides',
+      row,
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  @override
+  Future<Map<String, Map<String, dynamic>>> getAllTrackOverrides() async {
+    final db = await _dbService.database;
+    final List<Map<String, dynamic>> maps = await db.query('track_overrides');
+
+    return {for (var map in maps) map['trackId'] as String: map};
+  }
+
+  @override
+  Future<void> deleteTrackData(String trackId) async {
+    final db = await _dbService.database;
+    await db.transaction((txn) async {
+      await txn.delete(
+        'track_stats',
+        where: 'trackId = ?',
+        whereArgs: [trackId],
+      );
+      await txn.delete(
+        'track_overrides',
+        where: 'trackId = ?',
+        whereArgs: [trackId],
+      );
+      await txn.delete(
+        'playlist_tracks',
+        where: 'trackId = ?',
+        whereArgs: [trackId],
+      );
+    });
+  }
 }

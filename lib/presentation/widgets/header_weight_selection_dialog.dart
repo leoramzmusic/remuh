@@ -100,17 +100,23 @@ class HeaderWeightSelectionDialog extends StatelessWidget {
 
   String _getHeaderWeightName(HeaderWeight weight) {
     return switch (weight) {
-      HeaderWeight.bold => 'NEGRITA (Bold)',
+      HeaderWeight.thin => 'DELGADA (Thin)',
+      HeaderWeight.light => 'LIGERA (Light)',
       HeaderWeight.normal => 'NORMAL [Por defecto]',
-      HeaderWeight.light => 'FINA (Delgada)',
+      HeaderWeight.medium => 'MEDIA (Medium)',
+      HeaderWeight.semiBold => 'SEMI NEGRITA (SemiBold)',
+      HeaderWeight.bold => 'NEGRITA (Bold)',
     };
   }
 
   FontWeight _getFontWeight(HeaderWeight weight) {
     return switch (weight) {
-      HeaderWeight.bold => FontWeight.bold,
-      HeaderWeight.normal => FontWeight.normal,
+      HeaderWeight.thin => FontWeight.w200,
       HeaderWeight.light => FontWeight.w300,
+      HeaderWeight.normal => FontWeight.w400,
+      HeaderWeight.medium => FontWeight.w500,
+      HeaderWeight.semiBold => FontWeight.w600,
+      HeaderWeight.bold => FontWeight.w700,
     };
   }
 }

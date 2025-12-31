@@ -49,4 +49,7 @@ abstract class AudioRepository {
 
   /// Activar/desactivar aleatorio
   Future<void> setShuffleMode(bool enabled);
+
+  /// Eliminar permanentemente el archivo de una pista
+  Future<bool> deleteTrackFile(Track track);
 }

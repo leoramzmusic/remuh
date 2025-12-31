@@ -282,26 +282,27 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
   /// Cambiar modo aleatorio
   Future<void> toggleShuffle() async {
     try {
-      final nextShuffle = !state.shuffleMode;
+      final bool nextShuffle = !state.shuffleMode;
       List<int> shuffledIndices = [];
 
       if (nextShuffle && state.queue.isNotEmpty) {
+        // REGENERAR COLA: Cada vez que se activa shuffle, se crea un nuevo orden
         shuffledIndices = List.generate(state.queue.length, (i) => i);
         shuffledIndices.shuffle();
 
-        // Asegurarse de que el índice actual sea el primero en la lista mezclada
-        // para una transición suave, o simplemente barajar.
+        // Asegurarse de que el track actual esté al inicio para una transición fluida
         if (state.currentIndex != -1) {
           shuffledIndices.remove(state.currentIndex);
           shuffledIndices.insert(0, state.currentIndex);
         }
+
+        Logger.info('Shuffle regenerated with ${shuffledIndices.length} items');
       }
 
       state = state.copyWith(
         shuffleMode: nextShuffle,
         shuffledIndices: shuffledIndices,
       );
-      // No llamamos al handler nativo para evitar conflictos con nuestra lógica
     } catch (e) {
       Logger.error('Error toggling shuffle', e);
     }
@@ -328,11 +329,12 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
       if (startShuffled) {
         shuffledIndices = List.generate(tracks.length, (i) => i);
         shuffledIndices.shuffle();
+        // Si empezamos mezclado, el primer track es el primero de la mezcla
         playIndex = shuffledIndices[0];
       }
 
       final track = tracks[playIndex];
-      Logger.info('Loading playlist starting at: ${track.title}');
+      Logger.info('Loading playlist: $playlistName at index $playIndex');
 
       state = state.copyWith(
         queue: tracks,
@@ -345,12 +347,17 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
 
       await _loadTrack(track);
       state = state.copyWith(currentTrack: track);
-
       await _playAudio();
     } catch (e) {
       Logger.error('Error loading playlist', e);
       state = state.copyWith(error: e.toString());
     }
+  }
+
+  /// Seleccionar canción manualmente (vuelve a modo normal)
+  Future<void> playTrackManually(List<Track> contextTracks, int index) async {
+    // AL SELECCIONAR MANUALMENTE: La cola vuelve a modo normal desde esa canción
+    await loadPlaylist(contextTracks, index, startShuffled: false);
   }
 
   /// Saltar a la siguiente pista
@@ -515,24 +522,62 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
 
   /// Añadir pista al final de la cola
   void addToEnd(Track track) {
+    // Si la cola está vacía, simplemente reproducimos
+    if (state.queue.isEmpty) {
+      loadAndPlay(track);
+      return;
+    }
+
     final newQueue = List<Track>.from(state.queue)..add(track);
-    state = state.copyWith(queue: newQueue);
+
+    // Si estamos en shuffle, necesitamos actualizar shuffledIndices
+    List<int> newShuffledIndices = List.from(state.shuffledIndices);
+    if (state.shuffleMode) {
+      newShuffledIndices.add(newQueue.length - 1);
+    }
+
+    state = state.copyWith(
+      queue: newQueue,
+      shuffledIndices: newShuffledIndices,
+    );
     _saveState();
   }
 
   /// Insertar pista para reproducir después de la actual
   void playNext(Track track) {
-    final newQueue = List<Track>.from(state.queue);
-    final insertIndex = state.currentIndex + 1;
-
-    if (insertIndex <= newQueue.length) {
-      newQueue.insert(insertIndex, track);
-      state = state.copyWith(queue: newQueue);
-      _saveState();
+    if (state.queue.isEmpty) {
+      loadAndPlay(track);
+      return;
     }
+
+    final newQueue = List<Track>.from(state.queue);
+    final insertPos = state.currentIndex + 1;
+
+    newQueue.insert(insertPos, track);
+
+    // Ajustar shuffledIndices si es necesario
+    List<int> newShuffledIndices = List.from(state.shuffledIndices);
+    if (state.shuffleMode) {
+      // En shuffle, "play next" significa insertarlo justo después en la mezcla actual
+      final currentPosInShuffle = state.shuffledIndices.indexOf(
+        state.currentIndex,
+      );
+      // Primero incrementamos todos los índices que sean >= a la nueva posición absoluta
+      newShuffledIndices = newShuffledIndices
+          .map((idx) => idx >= insertPos ? idx + 1 : idx)
+          .toList();
+      // Luego insertamos la referencia a la nueva canción justo después de la actual en la mezcla
+      newShuffledIndices.insert(currentPosInShuffle + 1, insertPos);
+    }
+
+    state = state.copyWith(
+      queue: newQueue,
+      shuffledIndices: newShuffledIndices,
+    );
+    _saveState();
   }
 
-  /// Cargar una pista específica de la cola sin empezar reproducción necesariamente
+  /// Cargar una pista específica de la cola (índice absoluto de state.queue)
   Future<void> loadTrackInQueue(int index) async {
     try {
       final track = state.queue[index];
@@ -543,6 +588,74 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
       if (!e.toString().contains('Connection aborted')) {
         state = state.copyWith(error: e.toString());
       }
+    }
+  }
+
+  /// Cargar una pista por su posición en la cola EFECTIVA (lo que ve el usuario)
+  Future<void> skipToEffectiveIndex(int effectiveIndex) async {
+    if (state.shuffleMode && state.shuffledIndices.isNotEmpty) {
+      if (effectiveIndex >= 0 &&
+          effectiveIndex < state.shuffledIndices.length) {
+        final realIndex = state.shuffledIndices[effectiveIndex];
+        await loadTrackInQueue(realIndex);
+      }
+    } else {
+      await loadTrackInQueue(effectiveIndex);
+    }
+  }
+
+  Future<void> stop() async {
+    try {
+      await _repository.stop();
+      state = state.copyWith(playbackState: PlaybackState.stopped);
+    } catch (e) {
+      Logger.error('Error stopping audio', e);
+    }
+  }
+
+  /// Actualizar metadatos de una canción si está en la cola
+  void refreshTrackMetadata(String trackId, Map<String, dynamic> metadata) {
+    bool updated = false;
+    final newQueue = state.queue.map((t) {
+      if (t.id == trackId) {
+        updated = true;
+        return t.copyWith(
+          title: metadata['title'] as String?,
+          artist: metadata['artist'] as String?,
+          album: metadata['album'] as String?,
+        );
+      }
+      return t;
+    }).toList();
+
+    if (updated) {
+      state = state.copyWith(
+        queue: newQueue,
+        currentTrack: state.currentTrack?.id == trackId
+            ? newQueue.firstWhere((t) => t.id == trackId)
+            : state.currentTrack,
+      );
+      _saveState();
+    }
+  }
+
+  /// Notificar que una canción fue eliminada
+  void notifyTrackDeleted(String trackId) {
+    if (state.queue.any((t) => t.id == trackId)) {
+      final isPlayingDeleted = state.currentTrack?.id == trackId;
+
+      if (isPlayingDeleted) {
+        stop();
+      }
+
+      final newQueue = state.queue.where((t) => t.id != trackId).toList();
+
+      state = state.copyWith(
+        queue: newQueue,
+        currentIndex: isPlayingDeleted ? -1 : state.currentIndex,
+        currentTrack: isPlayingDeleted ? null : state.currentTrack,
+      );
+      _saveState();
     }
   }
 

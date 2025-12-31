@@ -13,6 +13,8 @@ import '../../core/theme/icon_sets.dart';
 import 'entity_detail_screen.dart';
 import 'player_screen.dart';
 import '../widgets/app_sidebar.dart';
+import '../widgets/track_contextual_menu.dart';
+import '../widgets/shuffle_indicator.dart';
 
 class LibraryScreen extends ConsumerWidget {
   const LibraryScreen({super.key});
@@ -165,10 +167,11 @@ class LibraryScreen extends ConsumerWidget {
                   final isShuffleActive = ref.watch(
                     audioPlayerProvider.select((s) => s.shuffleMode),
                   );
-                  return Icon(
-                    Icons.shuffle,
+                  return ShuffleIndicator(
+                    isActive: isShuffleActive,
                     size: 28,
-                    color: isShuffleActive ? Colors.orangeAccent : Colors.white,
+                    activeColor: Colors.orangeAccent,
+                    inactiveColor: Colors.white,
                   );
                 },
               ),
@@ -210,11 +213,14 @@ class LibraryScreen extends ConsumerWidget {
           onTap: () {
             ref
                 .read(audioPlayerProvider.notifier)
-                .loadPlaylist(tracks, index - 1);
+                .playTrackManually(tracks, index - 1);
             Navigator.push(
               context,
               MaterialPageRoute(builder: (context) => const PlayerScreen()),
             );
+          },
+          onLongPress: () {
+            TrackContextualMenu.show(context, ref, track, tracks);
           },
         );
       },

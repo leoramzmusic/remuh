@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:audio_service/audio_service.dart' as as_lib;
 
 import '../../domain/entities/track.dart';
@@ -106,4 +107,18 @@ class AudioRepositoryImpl implements AudioRepository {
   @override
   Future<void> setShuffleMode(bool enabled) =>
       _audioHandler.setShuffleModeEnabled(enabled);
+
+  @override
+  Future<bool> deleteTrackFile(Track track) async {
+    try {
+      final file = File(track.filePath);
+      if (await file.exists()) {
+        await file.delete();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      return false;
+    }
+  }
 }

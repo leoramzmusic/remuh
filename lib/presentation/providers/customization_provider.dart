@@ -21,7 +21,7 @@ final Map<String, Color> themeColors = {
   'Lime Green': const Color(0xFFCDDC39),
   'Green': const Color(0xFF4CAF50),
   'Brown': const Color(0xFF795548),
-  'Blanco [Default]': Colors.white,
+  'Blanco': Colors.white,
   'Negro': Colors.black,
 };
 
@@ -45,7 +45,7 @@ enum AppTypography {
   custom,
 }
 
-enum HeaderWeight { bold, normal, light }
+enum HeaderWeight { thin, light, normal, medium, semiBold, bold }
 
 enum TransitionEffect { zoomOut, fade, rotate, smallScale, cards, slide, flip }
 
@@ -60,6 +60,7 @@ class CustomizationState {
   final bool isLightTheme;
   final bool isTransparentActionBar;
   final bool isAdaptiveBackground;
+  final Color customColor;
 
   CustomizationState({
     required this.accentColor,
@@ -72,6 +73,7 @@ class CustomizationState {
     this.isLightTheme = false,
     this.isTransparentActionBar = true,
     this.isAdaptiveBackground = true,
+    this.customColor = Colors.white,
   });
 
   CustomizationState copyWith({
@@ -85,6 +87,7 @@ class CustomizationState {
     bool? isLightTheme,
     bool? isTransparentActionBar,
     bool? isAdaptiveBackground,
+    Color? customColor,
   }) {
     return CustomizationState(
       accentColor: accentColor ?? this.accentColor,
@@ -98,6 +101,7 @@ class CustomizationState {
       isTransparentActionBar:
           isTransparentActionBar ?? this.isTransparentActionBar,
       isAdaptiveBackground: isAdaptiveBackground ?? this.isAdaptiveBackground,
+      customColor: customColor ?? this.customColor,
     );
   }
 }
@@ -112,6 +116,7 @@ class CustomizationNotifier extends StateNotifier<CustomizationState> {
   static const String _isLightKey = 'app_is_light_theme';
   static const String _isTransparentKey = 'app_is_transparent_action_bar';
   static const String _isAdaptiveKey = 'app_is_adaptive_background';
+  static const String _customColorKey = 'app_custom_accent_color';
 
   CustomizationNotifier()
     : super(
@@ -140,8 +145,12 @@ class CustomizationNotifier extends StateNotifier<CustomizationState> {
     final isLightTheme = prefs.getBool(_isLightKey) ?? false;
     final isTransparent = prefs.getBool(_isTransparentKey) ?? true;
     final isAdaptive = prefs.getBool(_isAdaptiveKey) ?? true;
+    final customColorInt = prefs.getInt(_customColorKey) ?? Colors.white.value;
 
-    final accentColor = themeColors[colorName] ?? themeColors['Blanco']!;
+    final customColor = Color(customColorInt);
+    final accentColor = colorName == 'Personalizado'
+        ? customColor
+        : (themeColors[colorName] ?? themeColors['Blanco']!);
     final iconStyle = IconStyle.values[styleIndex];
     final typography = AppTypography.values[typographyIndex];
     final headerWeight = HeaderWeight.values[headerWeightIndex];
@@ -158,17 +167,32 @@ class CustomizationNotifier extends StateNotifier<CustomizationState> {
       isLightTheme: isLightTheme,
       isTransparentActionBar: isTransparent,
       isAdaptiveBackground: isAdaptive,
+      customColor: customColor,
     );
   }
 
   Future<void> setColor(String name) async {
-    final color = themeColors[name];
+    final color = name == 'Personalizado'
+        ? state.customColor
+        : themeColors[name];
     if (color == null) return;
 
     state = state.copyWith(accentColor: color, colorName: name);
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_colorKey, name);
+  }
+
+  Future<void> setCustomColor(Color color) async {
+    state = state.copyWith(
+      customColor: color,
+      accentColor: color,
+      colorName: 'Personalizado',
+    );
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_customColorKey, color.value);
+    await prefs.setString(_colorKey, 'Personalizado');
   }
 
   Future<void> setIconStyle(IconStyle style) async {

@@ -15,9 +15,14 @@ class QueueScreen extends ConsumerWidget {
     final customization = ref.watch(customizationProvider);
     final icons = AppIconSet.fromStyle(customization.iconStyle);
 
-    final queue = ref.watch(audioPlayerProvider.select((s) => s.queue));
-    final currentIndex = ref.watch(
-      audioPlayerProvider.select((s) => s.currentIndex),
+    final effectiveQueue = ref.watch(
+      audioPlayerProvider.select((s) => s.effectiveQueue),
+    );
+    final effectiveIndex = ref.watch(
+      audioPlayerProvider.select((s) => s.effectiveIndex),
+    );
+    final shuffleMode = ref.watch(
+      audioPlayerProvider.select((s) => s.shuffleMode),
     );
 
     return Container(
@@ -52,9 +57,6 @@ class QueueScreen extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: Consumer(
               builder: (context, ref, child) {
-                final shuffleMode = ref.watch(
-                  audioPlayerProvider.select((s) => s.shuffleMode),
-                );
                 final playlistName = ref.watch(
                   audioPlayerProvider.select((s) => s.playlistName),
                 );
@@ -63,9 +65,9 @@ class QueueScreen extends ConsumerWidget {
                 if (playlistName != null) {
                   subtitle = 'Reproduciendo $playlistName';
                 } else if (shuffleMode) {
-                  subtitle = 'Reproduciendo Aleatoriamente';
+                  subtitle = 'Modo Aleatorio Activo';
                 } else {
-                  subtitle = 'Reproduciendo En orden';
+                  subtitle = 'Reproduciendo en orden';
                 }
 
                 return Text(
@@ -82,25 +84,27 @@ class QueueScreen extends ConsumerWidget {
           ),
           Expanded(
             child: ReorderableListView.builder(
-              scrollController:
-                  scrollController, // Use the provided controller for drag behavior
-              itemCount: queue.length,
+              scrollController: scrollController,
+              itemCount: effectiveQueue.length,
               padding: const EdgeInsets.only(bottom: 32),
-              onReorder: (oldIndex, newIndex) {
-                ref
-                    .read(audioPlayerProvider.notifier)
-                    .reorderQueue(oldIndex, newIndex);
-              },
+              // Solo permitir reordenar si NO estamos en shuffle (por ahora simplificado)
+              onReorder: shuffleMode
+                  ? (old, next) {}
+                  : (oldIndex, newIndex) {
+                      ref
+                          .read(audioPlayerProvider.notifier)
+                          .reorderQueue(oldIndex, newIndex);
+                    },
               itemBuilder: (context, index) {
-                final track = queue[index];
-                final isCurrent = index == currentIndex;
+                final track = effectiveQueue[index];
+                final isCurrent = index == effectiveIndex;
 
                 return ListTile(
                   key: ValueKey(
-                    '${track.id}_$index',
-                  ), // Unique key including index to avoid conflicts
+                    '${track.id}_${shuffleMode ? "shf" : "ord"}_$index',
+                  ),
                   leading: Hero(
-                    tag: 'artwork_queue_${track.id}_$index', // Unique tag
+                    tag: 'artwork_queue_${track.id}_$index',
                     child: SizedBox(
                       width: 48,
                       height: 48,
@@ -126,7 +130,7 @@ class QueueScreen extends ConsumerWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   subtitle: Text(
-                    track.artist ?? 'Unknown Artist',
+                    track.artist ?? 'Artista desconocido',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -140,22 +144,37 @@ class QueueScreen extends ConsumerWidget {
                           color: Theme.of(context).colorScheme.outline,
                         ),
                         onPressed: () {
-                          ref
-                              .read(audioPlayerProvider.notifier)
-                              .removeFromQueue(index);
+                          // Manejar remoción según el modo
+                          if (shuffleMode) {
+                            // En shuffle, necesitamos remover del original y limpiar indices
+                            // Por ahora lo dejamos como mejora, o removemos del original.
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Remoción en shuffle en desarrollo',
+                                ),
+                              ),
+                            );
+                          } else {
+                            ref
+                                .read(audioPlayerProvider.notifier)
+                                .removeFromQueue(index);
+                          }
                         },
                       ),
-                      const SizedBox(width: 8),
-                      Icon(
-                        Icons.drag_handle_rounded,
-                        color: Theme.of(context).colorScheme.outline,
-                      ),
+                      if (!shuffleMode) ...[
+                        const SizedBox(width: 8),
+                        Icon(
+                          Icons.drag_handle_rounded,
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
+                      ],
                     ],
                   ),
                   onTap: () {
                     ref
                         .read(audioPlayerProvider.notifier)
-                        .loadTrackInQueue(index);
+                        .skipToEffectiveIndex(index);
                   },
                 );
               },

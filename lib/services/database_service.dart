@@ -23,7 +23,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: (db, version) async {
         Logger.info('Creating database tables...');
 
@@ -56,6 +56,19 @@ class DatabaseService {
             lastPlayedAt TEXT
           )
         ''');
+
+        // Table for track metadata overrides
+        await db.execute('''
+          CREATE TABLE track_overrides (
+            trackId TEXT PRIMARY KEY,
+            title TEXT,
+            artist TEXT,
+            album TEXT,
+            genre TEXT,
+            trackNumber INTEGER,
+            discNumber INTEGER
+          )
+        ''');
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
@@ -65,6 +78,19 @@ class DatabaseService {
               isFavorite INTEGER DEFAULT 0,
               playCount INTEGER DEFAULT 0,
               lastPlayedAt TEXT
+            )
+          ''');
+        }
+        if (oldVersion < 3) {
+          await db.execute('''
+            CREATE TABLE track_overrides (
+              trackId TEXT PRIMARY KEY,
+              title TEXT,
+              artist TEXT,
+              album TEXT,
+              genre TEXT,
+              trackNumber INTEGER,
+              discNumber INTEGER
             )
           ''');
         }

@@ -7,6 +7,18 @@ abstract class TrackRepository {
 
   /// Fetch all track stats from database
   Future<Map<String, TrackStats>> getAllTrackStats();
+
+  /// Update metadata overrides for a track
+  Future<void> updateTrackMetadata(
+    String trackId,
+    Map<String, dynamic> metadata,
+  );
+
+  /// Get all metadata overrides
+  Future<Map<String, Map<String, dynamic>>> getAllTrackOverrides();
+
+  /// Delete all data associated with a track (stats, overrides)
+  Future<void> deleteTrackData(String trackId);
 }
 
 class TrackStats {
