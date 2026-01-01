@@ -29,42 +29,46 @@ class TrackArtwork extends ConsumerWidget {
     // First, try to find a local cover file if we have a path (not implemented yet in Track entity, but planned)
     // For now, we'll use OnAudioQuery as the primary source but optimized.
 
-    return FutureBuilder<Uint8List?>(
-      future: _getArtworkBytes(trackId),
-      builder: (context, snapshot) {
-        if (snapshot.hasData && snapshot.data != null) {
-          return AspectRatio(
-            aspectRatio: 1,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(borderRadius),
-              child: Image.memory(
-                snapshot.data!,
-                width: size,
-                height: size,
-                fit: BoxFit.cover,
-                filterQuality: FilterQuality.high,
-                gaplessPlayback: true,
+    return SizedBox(
+      width: size,
+      height: size,
+      child: FutureBuilder<Uint8List?>(
+        future: _getArtworkBytes(trackId),
+        builder: (context, snapshot) {
+          if (snapshot.hasData && snapshot.data != null) {
+            return AspectRatio(
+              aspectRatio: 1,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(borderRadius),
+                child: Image.memory(
+                  snapshot.data!,
+                  width: size,
+                  height: size,
+                  fit: BoxFit.cover,
+                  filterQuality: FilterQuality.high,
+                  gaplessPlayback: true,
+                ),
               ),
-            ),
-          );
-        } else {
-          return Container(
-            width: size,
-            height: size,
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(borderRadius),
-            ),
-            child: Icon(
-              actualPlaceholder,
-              size: size * 0.5,
-              color: Theme.of(
-                context,
-              ).colorScheme.onSurface.withValues(alpha: 0.3),
-            ),
-          );
-        }
-      },
+            );
+          } else {
+            return Container(
+              width: size,
+              height: size,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(borderRadius),
+              ),
+              child: Icon(
+                actualPlaceholder,
+                size: size * 0.5,
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.3),
+              ),
+            );
+          }
+        },
+      ),
     );
   }
 

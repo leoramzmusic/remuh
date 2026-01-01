@@ -19,6 +19,9 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler {
     final session = await AudioSession.instance;
     await session.configure(const AudioSessionConfiguration.music());
 
+    // Audio focus is handled automatically by just_audio + AudioSession
+    // When another app requests audio, just_audio will pause automatically
+
     // Propagar eventos de just_audio a audio_service
     _player.playbackEventStream.listen(_broadcastState);
 

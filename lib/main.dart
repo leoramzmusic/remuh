@@ -28,10 +28,11 @@ void main() async {
   try {
     audioHandler = await AudioService.init(
       builder: () => AudioPlayerHandler(),
-      config: const AudioServiceConfig(
+      config: AudioServiceConfig(
         androidNotificationChannelId: 'com.leo.remuh.channel.audio',
         androidNotificationChannelName: 'Music Playback',
         androidNotificationOngoing: true,
+        androidStopForegroundOnPause: false, // Keep notification when paused
       ),
     );
   } catch (e) {

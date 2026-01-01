@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../presentation/widgets/equalizer_sheet.dart';
+import '../providers/sleep_timer_provider.dart';
+import '../viewmodels/equalizer_view_model.dart';
 
 import 'dart:async';
 import '../../domain/entities/track.dart';
 
+import '../providers/dynamic_color_provider.dart';
 import '../providers/audio_player_provider.dart';
 import '../widgets/track_artwork.dart';
 import '../widgets/progress_bar.dart';
@@ -13,12 +16,12 @@ import '../widgets/lyrics_view.dart';
 import '../providers/library_view_model.dart';
 import '../widgets/marquee_text.dart';
 import 'entity_detail_screen.dart';
-import '../../core/services/color_extraction_service.dart';
 
 import '../widgets/track_actions_sheet.dart';
 import '../widgets/lyrics_actions_sheet.dart';
 import '../../domain/repositories/audio_repository.dart';
 import '../widgets/shuffle_indicator.dart';
+import '../widgets/player_gesture_wrapper.dart';
 
 /// Pantalla principal del reproductor - Rediseñada
 class PlayerScreen extends ConsumerStatefulWidget {
@@ -32,8 +35,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   late PageController _pageController;
   Timer? _debounceTimer; // Timer for debouncing swipes
   bool _showLyrics = false;
-  final ColorExtractionService _colorService = ColorExtractionService();
-  List<Color>? _backgroundColors; // List for gradient
+  bool _showQueue = false;
 
   @override
   void initState() {
@@ -42,32 +44,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _pageController = PageController(
       initialPage: initialIndex >= 0 ? initialIndex : 0,
     );
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      // Initialize background color for current track
-      final currentTrack = ref.read(audioPlayerProvider).currentTrack;
-      if (currentTrack != null) {
-        _updateBackgroundColor(currentTrack.id);
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _pageController.dispose();
-    _debounceTimer?.cancel(); // Cancel timer
-    super.dispose();
-  }
-
-  Future<void> _updateBackgroundColor(String? trackId) async {
-    if (trackId == null) return;
-
-    final colors = await _colorService.getBackgroundColors(trackId);
-    if (mounted) {
-      setState(() {
-        _backgroundColors = colors;
-      });
-    }
   }
 
   @override
@@ -95,8 +71,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final isLandscape =
         MediaQuery.of(context).orientation == Orientation.landscape;
 
-    // Listeners for side effects (background color, artwork precache, page controller)
+    // Listeners for side effects (artwork precache, page controller)
     _setupListeners(queue);
+
+    final dynamicColorsAsync = ref.watch(dynamicColorsProvider);
+    final dynamicColors = dynamicColorsAsync.maybeWhen(
+      data: (colors) => colors,
+      orElse: () => [Colors.black, Colors.black],
+    );
 
     return WillPopScope(
       onWillPop: () async {
@@ -106,158 +88,216 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           });
           return false; // Don't pop data, just close lyrics
         }
+        if (_showQueue) {
+          setState(() {
+            _showQueue = false;
+          });
+          return false;
+        }
         return true; // Pop screen
       },
       child: Scaffold(
         backgroundColor: Colors.black, // Dark mode strict
-        body: Stack(
-          children: [
-            // Gradient Background
-            Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: _backgroundColors ?? [Colors.black, Colors.black],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
+        body: PlayerGestureWrapper(
+          onSwipeUp: () => setState(() => _showQueue = true),
+          child: Stack(
+            children: [
+              // Gradient Background
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      dynamicColors[0].withOpacity(0.8),
+                      dynamicColors[1].withOpacity(0.6),
+                      Colors.black,
+                    ],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                  ),
                 ),
               ),
-            ),
-            // Subtle overlay to ensure text readability if needed, or rely on dark colors
-            Container(color: Colors.black.withOpacity(0.3)),
-            Column(
-              children: [
-                if (!isLandscape) _buildTopBar(context, currentTrack),
-                Expanded(
-                  child: isLandscape
-                      ? _buildLandscapeDashboard(
-                          context,
-                          currentTrack,
-                          queue,
-                          currentIndex,
-                          isPlaying,
-                          hasNext,
-                          hasPrevious,
-                          repeatMode,
-                          shuffleMode,
-                        )
-                      : _buildMiddleSection(
-                          context,
-                          currentTrack,
-                          queue,
-                          currentIndex,
-                          isPlaying,
-                          hasNext,
-                          hasPrevious,
-                          repeatMode,
-                          shuffleMode,
-                        ),
-                ),
-                if (!isLandscape) _buildBottomBar(context, currentTrack),
-              ],
-            ),
+              // Subtle overlay to ensure text readability if needed, or rely on dark colors
+              Container(color: Colors.black.withOpacity(0.3)),
+              Column(
+                children: [
+                  if (!isLandscape) _buildTopBar(context, currentTrack),
+                  Expanded(
+                    child: isLandscape
+                        ? _buildLandscapeDashboard(
+                            context,
+                            currentTrack,
+                            queue,
+                            currentIndex,
+                            isPlaying,
+                            hasNext,
+                            hasPrevious,
+                            repeatMode,
+                            shuffleMode,
+                          )
+                        : _buildMiddleSection(
+                            context,
+                            currentTrack,
+                            queue,
+                            currentIndex,
+                            isPlaying,
+                            hasNext,
+                            hasPrevious,
+                            repeatMode,
+                            shuffleMode,
+                          ),
+                  ),
+                  if (!isLandscape) _buildBottomBar(context, currentTrack),
+                ],
+              ),
 
-            // Persistent Lyrics Layer (Stack-based)
-            if (_showLyrics)
-              Positioned.fill(
-                child: Stack(
-                  children: [
-                    // Barrier (Tap to close)
-                    GestureDetector(
-                      onTap: () => setState(() => _showLyrics = false),
-                      child: Container(color: Colors.black.withOpacity(0.3)),
-                    ),
-                    // Draggable Sheet
-                    TweenAnimationBuilder<double>(
-                      duration: const Duration(milliseconds: 300),
-                      tween: Tween(begin: 0.0, end: 1.0),
-                      curve: Curves.easeOut,
-                      builder: (context, value, child) {
-                        return Transform.translate(
-                          offset: Offset(
-                            0,
-                            50 * (1 - value),
-                          ), // Slide up effect
-                          child: Opacity(opacity: value, child: child),
-                        );
-                      },
-                      child: NotificationListener<DraggableScrollableNotification>(
-                        onNotification: (notification) {
-                          if (notification.extent < 0.25) {
-                            // Close if dragged too low
-                            setState(() {
-                              _showLyrics = false;
-                            });
-                          }
-                          return true;
+              // Persistent Lyrics Layer (Stack-based)
+              if (_showLyrics)
+                Positioned.fill(
+                  child: Stack(
+                    children: [
+                      // Barrier (Tap to close)
+                      GestureDetector(
+                        onTap: () => setState(() => _showLyrics = false),
+                        child: Container(color: Colors.black.withOpacity(0.3)),
+                      ),
+                      // Draggable Sheet
+                      TweenAnimationBuilder<double>(
+                        duration: const Duration(milliseconds: 300),
+                        tween: Tween(begin: 0.0, end: 1.0),
+                        curve: Curves.easeOut,
+                        builder: (context, value, child) {
+                          return Transform.translate(
+                            offset: Offset(
+                              0,
+                              50 * (1 - value),
+                            ), // Slide up effect
+                            child: Opacity(opacity: value, child: child),
+                          );
                         },
-                        child: DraggableScrollableSheet(
-                          initialChildSize: 0.5,
-                          minChildSize: 0.0,
-                          maxChildSize: 1.0, // Full persistent height!
-                          expand:
-                              true, // Use expand: true inside Stack for full height
-                          snap: true,
-                          snapSizes: const [0.5, 1.0],
-                          builder: (context, scrollController) {
-                            return Container(
-                              decoration: BoxDecoration(
-                                color: Theme.of(context).scaffoldBackgroundColor
-                                    .withOpacity(0.5), // Semi-transparent
-                                borderRadius: const BorderRadius.vertical(
-                                  top: Radius.circular(24),
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.3),
-                                    blurRadius: 20,
-                                    spreadRadius: 5,
-                                  ),
-                                ],
-                              ),
-                              child: Column(
-                                children: [
-                                  Expanded(
-                                    child: Stack(
-                                      children: [
-                                        LyricsView(
-                                          scrollController: scrollController,
+                        child:
+                            NotificationListener<
+                              DraggableScrollableNotification
+                            >(
+                              onNotification: (notification) {
+                                if (notification.extent < 0.25) {
+                                  // Close if dragged too low
+                                  setState(() {
+                                    _showLyrics = false;
+                                  });
+                                }
+                                return true;
+                              },
+                              child: DraggableScrollableSheet(
+                                initialChildSize: 0.5,
+                                minChildSize: 0.0,
+                                maxChildSize: 1.0, // Full persistent height!
+                                expand:
+                                    true, // Use expand: true inside Stack for full height
+                                snap: true,
+                                snapSizes: const [0.5, 1.0],
+                                builder: (context, scrollController) {
+                                  return Container(
+                                    decoration: BoxDecoration(
+                                      color: Theme.of(context)
+                                          .scaffoldBackgroundColor
+                                          .withOpacity(0.5), // Semi-transparent
+                                      borderRadius: const BorderRadius.vertical(
+                                        top: Radius.circular(24),
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.3),
+                                          blurRadius: 20,
+                                          spreadRadius: 5,
                                         ),
-                                        // Actions
-                                        Positioned(
-                                          top: 0,
-                                          right: 16,
-                                          child: IconButton(
-                                            icon: const Icon(Icons.more_vert),
-                                            onPressed: () {
-                                              if (currentTrack != null) {
-                                                showModalBottomSheet(
-                                                  context: context,
-                                                  isScrollControlled: true,
-                                                  backgroundColor:
-                                                      Colors.transparent,
-                                                  builder: (context) =>
-                                                      LyricsActionsSheet(
-                                                        track: currentTrack,
-                                                      ),
-                                                );
-                                              }
-                                            },
+                                      ],
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        Expanded(
+                                          child: Stack(
+                                            children: [
+                                              LyricsView(
+                                                scrollController:
+                                                    scrollController,
+                                              ),
+                                              // Actions
+                                              Positioned(
+                                                top: 0,
+                                                right: 16,
+                                                child: IconButton(
+                                                  icon: const Icon(
+                                                    Icons.more_vert,
+                                                  ),
+                                                  onPressed: () {
+                                                    if (currentTrack != null) {
+                                                      showModalBottomSheet(
+                                                        context: context,
+                                                        isScrollControlled:
+                                                            true,
+                                                        backgroundColor:
+                                                            Colors.transparent,
+                                                        builder: (context) =>
+                                                            LyricsActionsSheet(
+                                                              track:
+                                                                  currentTrack,
+                                                            ),
+                                                      );
+                                                    }
+                                                  },
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ),
                                       ],
                                     ),
-                                  ),
-                                ],
+                                  );
+                                },
                               ),
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+
+              // Persistent Queue Layer (Pull-up Sheet)
+              if (_showQueue)
+                Positioned.fill(
+                  child: Stack(
+                    children: [
+                      // Barrier
+                      GestureDetector(
+                        onTap: () => setState(() => _showQueue = false),
+                        child: Container(color: Colors.black.withOpacity(0.3)),
+                      ),
+                      // Pull-up Sheet
+                      NotificationListener<DraggableScrollableNotification>(
+                        onNotification: (notification) {
+                          if (notification.extent < 0.25) {
+                            setState(() => _showQueue = false);
+                          }
+                          return true;
+                        },
+                        child: DraggableScrollableSheet(
+                          initialChildSize: 0.6,
+                          minChildSize: 0.0,
+                          maxChildSize: 1.0,
+                          expand: true,
+                          snap: true,
+                          snapSizes: const [0.6, 1.0],
+                          builder: (context, scrollController) {
+                            return QueueScreen(
+                              scrollController: scrollController,
                             );
                           },
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -267,8 +307,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     // Update background color and precache next/prev artwork
     ref.listen(audioPlayerProvider.select((s) => s.currentTrack), (_, next) {
       if (next != null) {
-        _updateBackgroundColor(next.id);
-
         // Pre-cache next artwork
         final currentIndex = ref.read(audioPlayerProvider).currentIndex;
         if (currentIndex != -1 && currentIndex < queue.length - 1) {
@@ -485,9 +523,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     bool compact = false,
   }) {
     // Determine sizes based on screen and button type
-    final double sideIconSize = compact ? 20 : 24;
-    final double skipIconSize = compact ? 28 : 32;
-    final double playPauseSize = compact ? 42 : 48;
+    final double sideIconSize = compact
+        ? 16
+        : 20; // Repetir, Aleatorio, Temporizador, Ecualizador
+    final double skipIconSize = compact ? 40 : 44; // Anterior y Siguiente
+    final double playPauseSize = compact ? 72 : 80; // Play/Pause dominante
+
+    final eqEnabled = ref.watch(equalizerProvider.select((s) => s.isEnabled));
+    final isTimerActive = ref.watch(sleepTimerProvider);
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -498,21 +541,29 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           children: [
             IconButton(
               tooltip: 'Repetir',
-              icon: Icon(
-                repeatMode == AudioRepeatMode.one
-                    ? Icons.repeat_one
-                    : Icons.repeat,
-                size: sideIconSize,
-                color: repeatMode != AudioRepeatMode.off
-                    ? Theme.of(context).colorScheme.primary
-                    : Colors.white,
+              icon: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                child: Icon(
+                  repeatMode == AudioRepeatMode.one
+                      ? Icons.repeat_one
+                      : Icons.repeat,
+                  key: ValueKey('repeat_$repeatMode'),
+                  size: sideIconSize,
+                  color: repeatMode != AudioRepeatMode.off
+                      ? Theme.of(context).colorScheme.primary
+                      : Colors.white.withValues(alpha: 0.4),
+                ),
               ),
               onPressed: () =>
                   ref.read(audioPlayerProvider.notifier).toggleRepeatMode(),
             ),
             IconButton(
               tooltip: 'Aleatorio',
-              icon: ShuffleIndicator(isActive: shuffleMode, size: sideIconSize),
+              icon: ShuffleIndicator(
+                isActive: shuffleMode,
+                size: sideIconSize,
+                inactiveColor: Colors.white.withValues(alpha: 0.4),
+              ),
               onPressed: () =>
                   ref.read(audioPlayerProvider.notifier).toggleShuffle(),
             ),
@@ -571,23 +622,40 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           children: [
             IconButton(
               tooltip: 'Temporizador',
-              icon: Icon(
-                Icons.timer_outlined,
-                size: sideIconSize,
-                color: Colors.white,
+              icon: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                child: Icon(
+                  Icons.timer_outlined,
+                  key: ValueKey('timer_$isTimerActive'),
+                  size: sideIconSize,
+                  color: isTimerActive
+                      ? Theme.of(context).colorScheme.primary
+                      : Colors.white.withValues(alpha: 0.4),
+                ),
               ),
               onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Temporizador próximamente')),
-                );
+                ref.read(sleepTimerProvider.notifier).state = !isTimerActive;
+                if (ref.read(sleepTimerProvider)) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Temporizador activado (Simulado)'),
+                    ),
+                  );
+                }
               },
             ),
             IconButton(
               tooltip: 'Ecualizador',
-              icon: Icon(
-                Icons.equalizer_rounded,
-                size: sideIconSize,
-                color: Colors.white,
+              icon: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                child: Icon(
+                  Icons.equalizer_rounded,
+                  key: ValueKey('eq_$eqEnabled'),
+                  size: sideIconSize,
+                  color: eqEnabled
+                      ? Theme.of(context).colorScheme.primary
+                      : Colors.white.withValues(alpha: 0.4),
+                ),
               ),
               onPressed: () {
                 showModalBottomSheet(
@@ -747,27 +815,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 color: Colors.white,
                 size: 28,
               ),
-              onPressed: () {
-                showModalBottomSheet(
-                  context: context,
-                  isScrollControlled: true,
-                  backgroundColor: Theme.of(context).colorScheme.surface,
-                  shape: const RoundedRectangleBorder(
-                    borderRadius: BorderRadius.vertical(
-                      top: Radius.circular(24),
-                    ),
-                  ),
-                  builder: (context) => DraggableScrollableSheet(
-                    initialChildSize: 0.6,
-                    minChildSize: 0.4,
-                    maxChildSize: 0.95,
-                    expand: false, // For queue, false is fine inside modal
-                    builder: (context, scrollController) {
-                      return QueueScreen(scrollController: scrollController);
-                    },
-                  ),
-                );
-              },
+              onPressed: () => setState(() => _showQueue = true),
               tooltip: 'Queue',
             ),
             IconButton(

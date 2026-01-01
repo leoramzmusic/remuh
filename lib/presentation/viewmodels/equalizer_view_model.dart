@@ -72,7 +72,8 @@ class EqualizerViewModel extends StateNotifier<EqualizerState> {
       state = state.copyWith(
         bands: bands,
         presets: EqualizerService.defaultPresets,
-        isEnabled: state.isEnabled || true, // Default to true if we have bands
+        // Keep equalizer disabled by default - user must manually enable
+        isEnabled: false,
       );
     }
   }

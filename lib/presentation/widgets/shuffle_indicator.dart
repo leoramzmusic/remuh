@@ -18,34 +18,27 @@ class ShuffleIndicator extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = isActive
         ? (activeColor ?? Theme.of(context).colorScheme.primary)
-        : (inactiveColor ?? Colors.white54);
+        : (inactiveColor ?? Colors.white.withValues(alpha: 0.4));
 
-    return Stack(
-      clipBehavior: Clip.none,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Icon(Icons.shuffle_rounded, color: color, size: size),
         if (isActive)
-          Positioned(
-            top: -2,
-            right: -2,
-            child: Container(
-              width: size * 0.35,
-              height: size * 0.35,
-              decoration: BoxDecoration(
-                color: color,
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: Theme.of(context).scaffoldBackgroundColor,
-                  width: 1.5,
+          Container(
+            margin: const EdgeInsets.only(top: 4),
+            width: size * 0.25,
+            height: size * 0.25,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: color.withOpacity(0.4),
+                  blurRadius: 4,
+                  spreadRadius: 1,
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: color.withOpacity(0.4),
-                    blurRadius: 4,
-                    spreadRadius: 1,
-                  ),
-                ],
-              ),
+              ],
             ),
           ),
       ],
