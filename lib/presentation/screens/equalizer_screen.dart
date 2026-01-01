@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/theme/colors.dart';
+import '../providers/audio_player_provider.dart';
+import '../widgets/track_artwork.dart';
 import '../viewmodels/equalizer_view_model.dart';
+import '../widgets/equalizer_widgets.dart';
 
 class EqualizerScreen extends ConsumerWidget {
   const EqualizerScreen({super.key});
@@ -10,6 +12,10 @@ class EqualizerScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final eqState = ref.watch(equalizerProvider);
     final eqNotifier = ref.read(equalizerProvider.notifier);
+    final audioState = ref.watch(audioPlayerProvider);
+
+    final isLandscape =
+        MediaQuery.of(context).orientation == Orientation.landscape;
 
     return Scaffold(
       appBar: AppBar(
@@ -21,192 +27,211 @@ class EqualizerScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Presets',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+      body: isLandscape
+          ? _buildLandscapeLayout(context, eqState, eqNotifier, audioState)
+          : _buildPortraitLayout(context, eqState, eqNotifier),
+    );
+  }
+
+  Widget _buildPortraitLayout(
+    BuildContext context,
+    EqualizerState eqState,
+    EqualizerViewModel eqNotifier,
+  ) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildPresetsSection(context, eqState, eqNotifier),
+          const SizedBox(height: 48),
+          _buildManualAdjustSection(context, eqState, eqNotifier),
+          const SizedBox(height: 48),
+          Center(
+            child: TextButton.icon(
+              onPressed: () => eqNotifier.reset(),
+              icon: const Icon(Icons.refresh),
+              label: const Text('Restablecer'),
             ),
-            const SizedBox(height: 16),
-            DropdownButtonFormField<String>(
-              value: eqState.selectedPreset,
-              decoration: InputDecoration(
-                filled: true,
-                fillColor: Colors.white.withValues(alpha: 0.05),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-              dropdownColor: AppColors.darkSurface,
-              isExpanded: true,
-              selectedItemBuilder: (context) {
-                return eqState.presets.map((preset) {
-                  return Text(
-                    preset.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  );
-                }).toList();
-              },
-              items: eqState.presets.map((preset) {
-                return DropdownMenuItem<String>(
-                  value: preset.name,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(preset.name),
-                      if (preset.description.isNotEmpty)
-                        Text(
-                          preset.description,
-                          style: Theme.of(context).textTheme.labelSmall
-                              ?.copyWith(color: Colors.white60, fontSize: 10),
-                        ),
-                    ],
-                  ),
-                );
-              }).toList(),
-              onChanged: (value) {
-                if (value == null) return;
-                final preset = eqState.presets.firstWhere(
-                  (p) => p.name == value,
-                );
-                eqNotifier.applyPreset(preset);
-              },
-            ),
-            const SizedBox(height: 48),
-            Text(
-              'Ajuste Manual',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 32),
-            if (eqState.bands.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 40),
-                child: Column(
-                  children: [
-                    const CircularProgressIndicator(),
-                    const SizedBox(height: 24),
-                    const Text(
-                      'Obteniendo bandas de audio...',
-                      style: TextStyle(color: Colors.white70),
-                    ),
-                    const SizedBox(height: 16),
-                    TextButton(
-                      onPressed: () =>
-                          ref.read(equalizerProvider.notifier).retryInit(),
-                      child: const Text('Reintentar'),
-                    ),
-                  ],
-                ),
-              )
-            else
-              SizedBox(
-                height: 300,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: eqState.bands.asMap().entries.map((entry) {
-                    final index = entry.key;
-                    final band = entry.value;
-                    return _BandSlider(
-                      index: index,
-                      band: band,
-                      isEnabled: eqState.isEnabled,
-                      onChanged: (val) => eqNotifier.setBandLevel(index, val),
-                    );
-                  }).toList(),
-                ),
-              ),
-            const SizedBox(height: 48),
-            Center(
-              child: TextButton.icon(
-                onPressed: () => eqNotifier.reset(),
-                icon: const Icon(Icons.refresh),
-                label: const Text('Restablecer'),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
-}
 
-// Re-implementing _BandSlider here or moving it to a shared file would be better.
-// For now, I'll include it here to avoid complex refactoring in one step.
-class _BandSlider extends StatelessWidget {
-  final int index;
-  final dynamic band;
-  final bool isEnabled;
-  final ValueChanged<double> onChanged;
-
-  const _BandSlider({
-    required this.index,
-    required this.band,
-    required this.isEnabled,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Expanded(
-          child: RotatedBox(
-            quarterTurns: 3,
-            child: SliderTheme(
-              data: SliderTheme.of(context).copyWith(
-                trackHeight: 4,
-                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
-              ),
-              child: Slider(
-                value: band.currentGainDb,
-                min: band.minGainDb,
-                max: band.maxGainDb,
-                onChanged: isEnabled ? onChanged : null,
-              ),
+  Widget _buildLandscapeLayout(
+    BuildContext context,
+    EqualizerState eqState,
+    EqualizerViewModel eqNotifier,
+    AudioPlayerState audioState,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Left Column: Track Info and Presets
+          Expanded(
+            flex: 2,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (audioState.currentTrack != null) ...[
+                  Row(
+                    children: [
+                      TrackArtwork(
+                        trackId: audioState.currentTrack!.id,
+                        size: 64,
+                        borderRadius: 12,
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              audioState.currentTrack!.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                            Text(
+                              audioState.currentTrack!.artist ??
+                                  'Unknown Artist',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 32),
+                ],
+                _buildPresetsSection(context, eqState, eqNotifier),
+                const Spacer(),
+                Material(
+                  color: Colors.white.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(16),
+                  child: InkWell(
+                    onTap: () => eqNotifier.reset(),
+                    borderRadius: BorderRadius.circular(16),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.refresh,
+                            size: 20,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                          const SizedBox(width: 12),
+                          const Text(
+                            'Restablecer',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-        ),
-        const SizedBox(height: 12),
-        Text(
-          _formatFreq(band.centerHz),
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: isEnabled ? null : Colors.grey,
-            fontWeight: FontWeight.bold,
+          const SizedBox(width: 32),
+          // Right Column: Sliders
+          Expanded(
+            flex: 3,
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: const [
+                  BoxShadow(color: Colors.black26, blurRadius: 8),
+                ],
+              ),
+              child: _buildManualAdjustSection(context, eqState, eqNotifier),
+            ),
           ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          '${band.currentGainDb > 0 ? '+' : ''}${band.currentGainDb.toStringAsFixed(1)}',
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            fontSize: 10,
-            color: isEnabled
-                ? Theme.of(context).colorScheme.primary
-                : Colors.grey,
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
-  String _formatFreq(double hz) {
-    if (hz >= 1000) {
-      return '${(hz / 1000).toStringAsFixed(hz % 1000 == 0 ? 0 : 1)}k';
-    }
-    return '${hz.toInt()}';
+  Widget _buildPresetsSection(
+    BuildContext context,
+    EqualizerState eqState,
+    EqualizerViewModel eqNotifier,
+  ) {
+    return EqualizerPresetsDropdown(
+      selectedPreset: eqState.selectedPreset,
+      presets: eqState.presets,
+      onChanged: (value) {
+        if (value == null) return;
+        final preset = eqState.presets.firstWhere((p) => p.name == value);
+        eqNotifier.applyPreset(preset);
+      },
+    );
+  }
+
+  Widget _buildManualAdjustSection(
+    BuildContext context,
+    EqualizerState eqState,
+    EqualizerViewModel eqNotifier,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Ajuste Manual',
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 24),
+        if (eqState.bands.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 40),
+            child: Center(
+              child: Column(
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 24),
+                  Text(
+                    'Obteniendo bandas...',
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else
+          SizedBox(
+            height: 240, // Reduced height for landscape compatibility
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: eqState.bands.asMap().entries.map((entry) {
+                final index = entry.key;
+                final band = entry.value;
+                return BandSlider(
+                  index: index,
+                  band: band,
+                  isEnabled: eqState.isEnabled,
+                  onChanged: (val) => eqNotifier.setBandLevel(index, val),
+                );
+              }).toList(),
+            ),
+          ),
+      ],
+    );
   }
 }

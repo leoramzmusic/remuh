@@ -11,6 +11,7 @@ import '../widgets/progress_bar.dart';
 import 'queue_screen.dart';
 import '../widgets/lyrics_view.dart';
 import '../providers/library_view_model.dart';
+import '../widgets/marquee_text.dart';
 import 'entity_detail_screen.dart';
 import '../../core/services/color_extraction_service.dart';
 
@@ -91,6 +92,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       audioPlayerProvider.select((s) => s.shuffleMode),
     );
 
+    final isLandscape =
+        MediaQuery.of(context).orientation == Orientation.landscape;
+
     // Listeners for side effects (background color, artwork precache, page controller)
     _setupListeners(queue);
 
@@ -121,23 +125,34 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             // Subtle overlay to ensure text readability if needed, or rely on dark colors
             Container(color: Colors.black.withOpacity(0.3)),
             Column(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _buildTopBar(context, currentTrack),
+                if (!isLandscape) _buildTopBar(context, currentTrack),
                 Expanded(
-                  child: _buildMiddleSection(
-                    context,
-                    currentTrack,
-                    queue,
-                    currentIndex,
-                    isPlaying,
-                    hasNext,
-                    hasPrevious,
-                    repeatMode,
-                    shuffleMode,
-                  ),
+                  child: isLandscape
+                      ? _buildLandscapeDashboard(
+                          context,
+                          currentTrack,
+                          queue,
+                          currentIndex,
+                          isPlaying,
+                          hasNext,
+                          hasPrevious,
+                          repeatMode,
+                          shuffleMode,
+                        )
+                      : _buildMiddleSection(
+                          context,
+                          currentTrack,
+                          queue,
+                          currentIndex,
+                          isPlaying,
+                          hasNext,
+                          hasPrevious,
+                          repeatMode,
+                          shuffleMode,
+                        ),
                 ),
-                _buildBottomBar(context, currentTrack),
+                if (!isLandscape) _buildBottomBar(context, currentTrack),
               ],
             ),
 
@@ -249,10 +264,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   void _setupListeners(List<Track> queue) {
-    // Update background color
+    // Update background color and precache next/prev artwork
     ref.listen(audioPlayerProvider.select((s) => s.currentTrack), (_, next) {
       if (next != null) {
         _updateBackgroundColor(next.id);
+
+        // Pre-cache next artwork
+        final currentIndex = ref.read(audioPlayerProvider).currentIndex;
+        if (currentIndex != -1 && currentIndex < queue.length - 1) {
+          final nextTrack = queue[currentIndex + 1];
+          TrackArtwork.cacheArtwork(nextTrack.id);
+        }
+        // Pre-cache previous artwork
+        if (currentIndex > 0) {
+          final prevTrack = queue[currentIndex - 1];
+          TrackArtwork.cacheArtwork(prevTrack.id);
+        }
       }
     });
 
@@ -350,125 +377,339 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     AudioRepeatMode repeatMode,
     bool shuffleMode,
   ) {
-    return Column(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Adjust spacing and sizes based on available height
+        final double maxHeight = constraints.maxHeight;
+        final bool isSmallScreen = maxHeight < 600;
+
+        return SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: maxHeight),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Album Art
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                    child: SizedBox(
+                      // Adaptive size: use 80% width but cap it based on height
+                      height:
+                          (isSmallScreen
+                                  ? maxHeight * 0.4
+                                  : MediaQuery.of(context).size.width * 0.8)
+                              .clamp(150.0, 400.0),
+                      width:
+                          (isSmallScreen
+                                  ? maxHeight * 0.4
+                                  : MediaQuery.of(context).size.width * 0.8)
+                              .clamp(150.0, 400.0),
+                      child: _buildAlbumCover(
+                        currentTrack,
+                        queue,
+                        currentIndex,
+                        false,
+                      ),
+                    ),
+                  ),
+
+                  SizedBox(height: isSmallScreen ? 16 : 24),
+
+                  // Song Info
+                  _buildSongInfo(currentTrack),
+
+                  SizedBox(height: isSmallScreen ? 20 : 32),
+
+                  // Playback Controls
+                  _buildPlaybackControls(
+                    context,
+                    isPlaying,
+                    hasNext,
+                    hasPrevious,
+                    repeatMode,
+                    shuffleMode,
+                    compact: isSmallScreen,
+                  ),
+
+                  SizedBox(height: isSmallScreen ? 16 : 24),
+
+                  // Progress Bar
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 24.0),
+                    child: ProgressBar(),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSongInfo(Track? currentTrack) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 32.0),
+      child: Column(
+        children: [
+          MarqueeText(
+            text: currentTrack?.title ?? 'No Track Playing',
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+            height: 32,
+          ),
+          const SizedBox(height: 8),
+          MarqueeText(
+            text: currentTrack?.artist ?? 'Unknown Artist',
+            style: const TextStyle(fontSize: 18, color: Colors.white60),
+            height: 24,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPlaybackControls(
+    BuildContext context,
+    bool isPlaying,
+    bool hasNext,
+    bool hasPrevious,
+    AudioRepeatMode repeatMode,
+    bool shuffleMode, {
+    bool compact = false,
+  }) {
+    // Determine sizes based on screen and button type
+    final double sideIconSize = compact ? 20 : 24;
+    final double skipIconSize = compact ? 28 : 32;
+    final double playPauseSize = compact ? 42 : 48;
+
+    return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        // Album Art
-        Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: SizedBox(
-            height: MediaQuery.of(context).size.width * 0.8, // Responsive size
-            width: MediaQuery.of(context).size.width * 0.8,
-            child: _buildAlbumCover(currentTrack, queue, currentIndex),
-          ),
-        ),
-
-        const SizedBox(height: 24),
-
-        // Song Info
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32.0),
-          child: Column(
-            children: [
-              Text(
-                currentTrack?.title ?? 'No Track Playing',
-                style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                currentTrack?.artist ?? 'Unknown Artist',
-                style: const TextStyle(fontSize: 18, color: Colors.white60),
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-        ),
-
-        const SizedBox(height: 32),
-
-        // Playback Controls
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        // Columna izquierda: Repetir y Aleatorio
+        Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
             IconButton(
-              icon: ShuffleIndicator(isActive: shuffleMode, size: 24),
+              tooltip: 'Repetir',
+              icon: Icon(
+                repeatMode == AudioRepeatMode.one
+                    ? Icons.repeat_one
+                    : Icons.repeat,
+                size: sideIconSize,
+                color: repeatMode != AudioRepeatMode.off
+                    ? Theme.of(context).colorScheme.primary
+                    : Colors.white,
+              ),
+              onPressed: () =>
+                  ref.read(audioPlayerProvider.notifier).toggleRepeatMode(),
+            ),
+            IconButton(
+              tooltip: 'Aleatorio',
+              icon: ShuffleIndicator(isActive: shuffleMode, size: sideIconSize),
               onPressed: () =>
                   ref.read(audioPlayerProvider.notifier).toggleShuffle(),
             ),
+          ],
+        ),
+
+        const SizedBox(width: 16),
+
+        // Controles centrales: Anterior, Play/Pause, Siguiente
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
             _AnimatedIconButton(
-              icon: const Padding(
-                padding: EdgeInsets.all(8.0),
-                child: Icon(Icons.skip_previous, color: Colors.white, size: 36),
+              tooltip: 'Anterior',
+              icon: Icon(
+                Icons.skip_previous,
+                color: Colors.white,
+                size: skipIconSize,
               ),
               onTap: hasPrevious
                   ? () =>
                         ref.read(audioPlayerProvider.notifier).skipToPrevious()
                   : null,
             ),
-            Container(
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.white.withOpacity(0.2),
-                    blurRadius: 10,
-                    spreadRadius: 2,
-                  ),
-                ],
-              ),
-              child: IconButton(
-                icon: Icon(
-                  isPlaying ? Icons.pause : Icons.play_arrow,
-                  color: Colors.black,
-                  size: 40,
-                ),
-                onPressed: () =>
-                    ref.read(audioPlayerProvider.notifier).togglePlayPause(),
-                padding: const EdgeInsets.all(16),
-              ),
-            ),
+            const SizedBox(width: 12),
             _AnimatedIconButton(
-              icon: const Padding(
-                padding: EdgeInsets.all(8.0),
-                child: Icon(Icons.skip_next, color: Colors.white, size: 36),
+              tooltip: isPlaying ? 'Pausar' : 'Reproducir',
+              icon: Icon(
+                isPlaying ? Icons.pause_circle : Icons.play_circle,
+                color: Colors.white,
+                size: playPauseSize,
+              ),
+              onTap: () =>
+                  ref.read(audioPlayerProvider.notifier).togglePlayPause(),
+            ),
+            const SizedBox(width: 12),
+            _AnimatedIconButton(
+              tooltip: 'Siguiente',
+              icon: Icon(
+                Icons.skip_next,
+                color: Colors.white,
+                size: skipIconSize,
               ),
               onTap: hasNext
                   ? () => ref.read(audioPlayerProvider.notifier).skipToNext()
                   : null,
             ),
-            IconButton(
-              icon: Icon(
-                repeatMode == AudioRepeatMode.one
-                    ? Icons.repeat_one
-                    : Icons.repeat,
-                color: repeatMode != AudioRepeatMode.off
-                    ? Theme.of(context).colorScheme.primary
-                    : Colors.white54,
-              ),
-              onPressed: () =>
-                  ref.read(audioPlayerProvider.notifier).toggleRepeatMode(),
-            ),
           ],
         ),
 
-        const SizedBox(height: 24),
+        const SizedBox(width: 16),
 
-        // Progress Bar
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 24.0),
-          child: ProgressBar(),
+        // Columna derecha: Temporizador y Ecualizador
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              tooltip: 'Temporizador',
+              icon: Icon(
+                Icons.timer_outlined,
+                size: sideIconSize,
+                color: Colors.white,
+              ),
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Temporizador próximamente')),
+                );
+              },
+            ),
+            IconButton(
+              tooltip: 'Ecualizador',
+              icon: Icon(
+                Icons.equalizer_rounded,
+                size: sideIconSize,
+                color: Colors.white,
+              ),
+              onPressed: () {
+                showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true,
+                  backgroundColor: Colors.transparent,
+                  builder: (context) => const EqualizerSheet(),
+                );
+              },
+            ),
+          ],
         ),
       ],
+    );
+  }
+
+  Widget _buildLandscapeDashboard(
+    BuildContext context,
+    Track? currentTrack,
+    List<Track> queue,
+    int currentIndex,
+    bool isPlaying,
+    bool hasNext,
+    bool hasPrevious,
+    AudioRepeatMode repeatMode,
+    bool shuffleMode,
+  ) {
+    return SafeArea(
+      child: Column(
+        children: [
+          // Landscape Top Bar
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                IconButton(
+                  icon: const Icon(
+                    Icons.keyboard_arrow_down,
+                    color: Colors.white,
+                  ),
+                  onPressed: () => Navigator.pop(context),
+                  tooltip: 'Back to library',
+                ),
+                IconButton(
+                  icon: Icon(
+                    Icons.lyrics,
+                    color: _showLyrics
+                        ? Theme.of(context).colorScheme.primary
+                        : Colors.white,
+                  ),
+                  onPressed: () => setState(() => _showLyrics = !_showLyrics),
+                  tooltip: 'Toggle lyrics',
+                ),
+                IconButton(
+                  icon: const Icon(Icons.more_vert, color: Colors.white),
+                  onPressed: () {
+                    if (currentTrack != null) {
+                      _showTrackActions(context, currentTrack);
+                    }
+                  },
+                  tooltip: 'Track actions',
+                ),
+              ],
+            ),
+          ),
+          // Main Landscape Content
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 43.0,
+                vertical: 12.0,
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // Left Column: Square Album Artwork (Flex 4)
+                  Expanded(
+                    flex: 4,
+                    child: Center(
+                      child: AspectRatio(
+                        aspectRatio: 1,
+                        child: _buildAlbumCover(
+                          currentTrack,
+                          queue,
+                          currentIndex,
+                          true,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 48),
+                  // Right Column: Controls and Info (Flex 6)
+                  Expanded(
+                    flex: 6,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _buildSongInfo(currentTrack),
+                        const SizedBox(height: 16),
+                        const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 16.0),
+                          child: ProgressBar(),
+                        ),
+                        const SizedBox(height: 24),
+                        _buildPlaybackControls(
+                          context,
+                          isPlaying,
+                          hasNext,
+                          hasPrevious,
+                          repeatMode,
+                          shuffleMode,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -499,18 +740,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 }
               },
               tooltip: 'Album Songs',
-            ),
-            IconButton(
-              icon: const Icon(Icons.tune, color: Colors.white),
-              onPressed: () {
-                showModalBottomSheet(
-                  context: context,
-                  isScrollControlled: true,
-                  backgroundColor: Colors.transparent,
-                  builder: (context) => const EqualizerSheet(),
-                );
-              },
-              tooltip: 'Equalizer',
             ),
             IconButton(
               icon: const Icon(
@@ -567,7 +796,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     );
   }
 
-  Widget _buildAlbumCover(Track? track, List<Track> queue, int currentIndex) {
+  Widget _buildAlbumCover(
+    Track? track,
+    List<Track> queue,
+    int currentIndex,
+    bool isLandscape,
+  ) {
     if (track == null) return _buildPlaceholderCover();
 
     // Using PageView for swipe support which users expect
@@ -599,8 +833,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             borderRadius: BorderRadius.circular(16),
             child: TrackArtwork(
               trackId: itemTrack.id,
-              size:
-                  300, // Reduced from potentially larger sizes, matches cache optimization
+              size: isLandscape ? 200 : 300,
               borderRadius: 16,
             ),
           ),
@@ -625,10 +858,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 class _AnimatedIconButton extends StatefulWidget {
   final Widget icon;
   final VoidCallback? onTap;
+  final String? tooltip;
   final double pressedScale = 0.8;
   final Duration duration = const Duration(milliseconds: 150);
 
-  const _AnimatedIconButton({required this.icon, required this.onTap});
+  const _AnimatedIconButton({
+    required this.icon,
+    required this.onTap,
+    this.tooltip,
+  });
 
   @override
   _AnimatedIconButtonState createState() => _AnimatedIconButtonState();
@@ -652,7 +890,7 @@ class _AnimatedIconButtonState extends State<_AnimatedIconButton> {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    Widget content = GestureDetector(
       onTap: _handleTap,
       child: AnimatedScale(
         scale: _isPressed ? widget.pressedScale : 1.0,
@@ -661,5 +899,11 @@ class _AnimatedIconButtonState extends State<_AnimatedIconButton> {
         child: widget.icon, // The icon widget itself (e.g. Icon or IconButton)
       ),
     );
+
+    if (widget.tooltip != null) {
+      content = Tooltip(message: widget.tooltip!, child: content);
+    }
+
+    return content;
   }
 }

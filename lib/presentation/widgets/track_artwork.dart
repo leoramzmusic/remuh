@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:on_audio_query/on_audio_query.dart';
 import '../providers/customization_provider.dart';
 import '../../core/theme/icon_sets.dart';
+import '../../core/utils/logger.dart';
 
 class TrackArtwork extends ConsumerWidget {
   final String trackId;
@@ -25,29 +26,25 @@ class TrackArtwork extends ConsumerWidget {
     final icons = AppIconSet.fromStyle(customization.iconStyle);
     final actualPlaceholder = placeholderIcon ?? icons.lyrics;
 
+    // First, try to find a local cover file if we have a path (not implemented yet in Track entity, but planned)
+    // For now, we'll use OnAudioQuery as the primary source but optimized.
+
     return FutureBuilder<Uint8List?>(
-      // Use queryArtwork directly to avoid unnecessary compression/resizing overhead
-      // unless specified.
-      future: OnAudioQuery().queryArtwork(
-        int.parse(trackId),
-        ArtworkType.AUDIO,
-        // If size > 200, we interpret it as a request for higher quality.
-        // The user suggested not passing size for max quality, but we might want
-        // to put a cap (e.g. 1000) to be safe, or just let it be if lazy loading works.
-        // Let's pass 1000 if size is large, else 200.
-        size: size > 200 ? 1000 : 200,
-        quality: size > 200 ? 100 : 50,
-      ),
+      future: _getArtworkBytes(trackId),
       builder: (context, snapshot) {
         if (snapshot.hasData && snapshot.data != null) {
-          return ClipRRect(
-            borderRadius: BorderRadius.circular(borderRadius),
-            child: Image.memory(
-              snapshot.data!,
-              width: size,
-              height: size,
-              fit: BoxFit.cover,
-              gaplessPlayback: true, // Avoids flickering and recreating objects
+          return AspectRatio(
+            aspectRatio: 1,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(borderRadius),
+              child: Image.memory(
+                snapshot.data!,
+                width: size,
+                height: size,
+                fit: BoxFit.cover,
+                filterQuality: FilterQuality.high,
+                gaplessPlayback: true,
+              ),
             ),
           );
         } else {
@@ -69,5 +66,26 @@ class TrackArtwork extends ConsumerWidget {
         }
       },
     );
+  }
+
+  Future<Uint8List?> _getArtworkBytes(String trackId) async {
+    return cacheArtwork(trackId);
+  }
+
+  /// Pre-caches artwork bytes for a given track ID
+  static Future<Uint8List?> cacheArtwork(String trackId) async {
+    try {
+      final bytes = await OnAudioQuery().queryArtwork(
+        int.parse(trackId),
+        ArtworkType.AUDIO,
+        size: 1000,
+        quality: 100,
+        format: ArtworkFormat.JPEG,
+      );
+      return bytes;
+    } catch (e) {
+      Logger.error('Error fetching/caching artwork for $trackId: $e');
+      return null;
+    }
   }
 }
