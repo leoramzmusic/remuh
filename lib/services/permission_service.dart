@@ -59,7 +59,7 @@ class PermissionService {
         status = await Permission.storage.request();
       }
 
-      final granted = status.isGranted;
+      final granted = status.isStatusGranted;
 
       // Persist permission state
       final prefs = await SharedPreferences.getInstance();
@@ -67,12 +67,35 @@ class PermissionService {
 
       if (granted) {
         Logger.info('Storage/Audio permission granted');
-        return true;
       } else {
         Logger.warning('Storage/Audio permission denied: $status');
-        return false;
+      }
+
+      return granted;
+    }
+    return true;
+  }
+
+  Future<bool> requestNotificationPermission() async {
+    if (Platform.isAndroid) {
+      final deviceInfo = DeviceInfoPlugin();
+      final androidInfo = await deviceInfo.androidInfo;
+
+      if (androidInfo.version.sdkInt >= 33) {
+        final status = await Permission.notification.request();
+        if (status.isStatusGranted) {
+          Logger.info('Notification permission granted');
+          return true;
+        } else {
+          Logger.warning('Notification permission denied: $status');
+          return false;
+        }
       }
     }
-    return true; // iOS usually requires info.plist changes only, simpler for now
+    return true;
   }
+}
+
+extension on PermissionStatus {
+  bool get isStatusGranted => this == PermissionStatus.granted;
 }

@@ -14,7 +14,6 @@ import 'entity_detail_screen.dart';
 import 'player_screen.dart';
 import '../widgets/app_sidebar.dart';
 import '../widgets/track_contextual_menu.dart';
-import '../widgets/shuffle_indicator.dart';
 
 class LibraryScreen extends ConsumerWidget {
   const LibraryScreen({super.key});
@@ -79,28 +78,6 @@ class LibraryScreen extends ConsumerWidget {
                   },
                   tooltip: isGrid ? 'Vista lista' : 'Vista cuadrícula',
                 ),
-                PopupMenuButton<SortOption>(
-                  icon: const Icon(Icons.sort_rounded),
-                  tooltip: 'Ordenar',
-                  onSelected: (option) {
-                    ref.read(sortOptionProvider.notifier).state = option;
-                  },
-                  itemBuilder: (context) => [
-                    PopupMenuItem(
-                      value: SortOption.name,
-                      child: Text('Nombre'),
-                    ),
-                    PopupMenuItem(value: SortOption.date, child: Text('Fecha')),
-                    PopupMenuItem(
-                      value: SortOption.artist,
-                      child: Text('Artista'),
-                    ),
-                    PopupMenuItem(
-                      value: SortOption.album,
-                      child: Text('Álbum'),
-                    ),
-                  ],
-                ),
                 IconButton(
                   icon: const Icon(Icons.refresh_rounded),
                   onPressed: libraryState.isScanning
@@ -147,54 +124,138 @@ class LibraryScreen extends ConsumerWidget {
     LibraryState state,
     AppIconSet icons,
   ) {
-    if (state.tracks.isEmpty && !state.isScanning) {
+    final tracks = ref.watch(sortedTracksProvider);
+    if (tracks.isEmpty && !state.isScanning) {
       return _buildEmptyState(ref, icons);
     }
-    if (state.isScanning && state.tracks.isEmpty) {
+    if (state.isScanning && tracks.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    final tracks = state.tracks;
     return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       itemCount: tracks.length + 1,
       itemBuilder: (context, index) {
         if (index == 0) {
-          return ListTile(
-            leading: CircleAvatar(
-              backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-              child: Consumer(
-                builder: (context, ref, _) {
-                  final isShuffleActive = ref.watch(
-                    audioPlayerProvider.select((s) => s.shuffleMode),
-                  );
-                  return ShuffleIndicator(
-                    isActive: isShuffleActive,
-                    size: 28,
-                    activeColor: Colors.orangeAccent,
-                    inactiveColor: Colors.white,
-                  );
-                },
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Shuffle icon + label
+                  GestureDetector(
+                    onTap: () {
+                      ref
+                          .read(audioPlayerProvider.notifier)
+                          .loadPlaylist(tracks, 0, startShuffled: true);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const PlayerScreen(),
+                        ),
+                      );
+                    },
+                    child: const Row(
+                      children: [
+                        Icon(Icons.shuffle, color: Colors.white, size: 20),
+                        SizedBox(width: 8),
+                        Text(
+                          'REPRODUCCIÓN ALEATORIA',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1.2,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Ordenar icono con combo desplegable
+                  Consumer(
+                    builder: (context, ref, _) {
+                      return PopupMenuButton<SortOption>(
+                        icon: const Icon(
+                          Icons.sort_rounded,
+                          color: Colors.white70,
+                        ),
+                        onSelected: (option) {
+                          ref.read(sortOptionProvider.notifier).state = option;
+                        },
+                        itemBuilder: (context) => [
+                          const PopupMenuItem(
+                            value: SortOption.nameAz,
+                            child: Text('Ordenar de A-Z'),
+                          ),
+                          const PopupMenuItem(
+                            value: SortOption.nameZa,
+                            child: Text('Ordenar de Z-A'),
+                          ),
+                          const PopupMenuItem(
+                            value: SortOption.dateAdded,
+                            child: Text('Ordenar por fecha de añadido'),
+                          ),
+                          const PopupMenuItem(
+                            value: SortOption.albumAz,
+                            child: Text('Ordenar álbumes A-Z'),
+                          ),
+                          const PopupMenuItem(
+                            value: SortOption.albumZa,
+                            child: Text('Ordenar álbumes Z-A'),
+                          ),
+                          const PopupMenuItem(
+                            value: SortOption.artistAz,
+                            child: Text('Ordenar artistas A-Z'),
+                          ),
+                          const PopupMenuItem(
+                            value: SortOption.artistZa,
+                            child: Text('Ordenar artistas Z-A'),
+                          ),
+                          const PopupMenuItem(
+                            value: SortOption.albumArtistAz,
+                            child: Text('Ordenar álbum por artista A-Z'),
+                          ),
+                          const PopupMenuItem(
+                            value: SortOption.albumArtistZa,
+                            child: Text('Ordenar álbum por artista Z-A'),
+                          ),
+                          const PopupMenuItem(
+                            value: SortOption.duration,
+                            child: Text('Ordenar por duración'),
+                          ),
+                          const PopupMenuItem(
+                            value: SortOption.yearAsc,
+                            child: Text('Ordenar por año 0 - 2026'),
+                          ),
+                          const PopupMenuItem(
+                            value: SortOption.yearDesc,
+                            child: Text('Ordenar por año 2026 - 0'),
+                          ),
+                          const PopupMenuItem(
+                            value: SortOption.mostPlayed,
+                            child: Text('Ordenar por más reproducidas'),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ],
               ),
-            ),
-            title: const Text(
-              'Modo Aleatorio',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            subtitle: Text('${tracks.length} canciones'),
-            onTap: () {
-              ref
-                  .read(audioPlayerProvider.notifier)
-                  .loadPlaylist(tracks, 0, startShuffled: true);
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const PlayerScreen()),
-              );
-            },
+              const SizedBox(height: 4),
+              Text(
+                '${tracks.length} canciones',
+                style: const TextStyle(color: Colors.white70, fontSize: 13),
+              ),
+              const SizedBox(height: 16),
+            ],
           );
         }
 
         final track = tracks[index - 1];
         return ListTile(
+          contentPadding: EdgeInsets.zero,
           leading: Hero(
             tag: 'artwork_${track.id}',
             child: TrackArtwork(trackId: track.id, size: 50, borderRadius: 4),

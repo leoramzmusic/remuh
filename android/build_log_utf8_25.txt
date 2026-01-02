@@ -1,0 +1,385 @@
+﻿> Task :gradle:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :gradle:compileKotlin UP-TO-DATE
+> Task :gradle:compileJava NO-SOURCE
+> Task :gradle:compileGroovy NO-SOURCE
+> Task :gradle:pluginDescriptors UP-TO-DATE
+> Task :gradle:processResources UP-TO-DATE
+> Task :gradle:classes UP-TO-DATE
+> Task :gradle:jar UP-TO-DATE
+> Task :app:DebugMinSdkCheck
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:compileFlutterBuildDebug
+> Task :app:packJniLibsflutterBuildDebug UP-TO-DATE
+> Task :audio_service:preBuild UP-TO-DATE
+> Task :audio_service:preDebugBuild UP-TO-DATE
+> Task :audio_service:writeDebugAarMetadata UP-TO-DATE
+> Task :audio_session:preBuild UP-TO-DATE
+> Task :audio_session:preDebugBuild UP-TO-DATE
+> Task :audio_session:writeDebugAarMetadata UP-TO-DATE
+> Task :device_info_plus:preBuild UP-TO-DATE
+> Task :device_info_plus:preDebugBuild UP-TO-DATE
+> Task :device_info_plus:writeDebugAarMetadata UP-TO-DATE
+> Task :just_audio:preBuild UP-TO-DATE
+> Task :just_audio:preDebugBuild UP-TO-DATE
+> Task :just_audio:writeDebugAarMetadata UP-TO-DATE
+> Task :on_audio_query_android:preBuild UP-TO-DATE
+> Task :on_audio_query_android:preDebugBuild UP-TO-DATE
+> Task :on_audio_query_android:writeDebugAarMetadata UP-TO-DATE
+> Task :path_provider_android:preBuild UP-TO-DATE
+> Task :path_provider_android:preDebugBuild UP-TO-DATE
+> Task :path_provider_android:writeDebugAarMetadata UP-TO-DATE
+> Task :permission_handler_android:preBuild UP-TO-DATE
+> Task :permission_handler_android:preDebugBuild UP-TO-DATE
+> Task :permission_handler_android:writeDebugAarMetadata UP-TO-DATE
+> Task :sqflite_android:preBuild UP-TO-DATE
+> Task :sqflite_android:preDebugBuild UP-TO-DATE
+> Task :sqflite_android:writeDebugAarMetadata UP-TO-DATE
+> Task :app:checkDebugAarMetadata UP-TO-DATE
+> Task :app:cleanMergeDebugAssets
+> Task :app:mergeDebugShaders UP-TO-DATE
+> Task :app:compileDebugShaders NO-SOURCE
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :audio_service:mergeDebugShaders UP-TO-DATE
+> Task :audio_service:compileDebugShaders NO-SOURCE
+> Task :audio_service:generateDebugAssets UP-TO-DATE
+> Task :audio_service:mergeDebugAssets UP-TO-DATE
+> Task :audio_session:mergeDebugShaders UP-TO-DATE
+> Task :audio_session:compileDebugShaders NO-SOURCE
+> Task :audio_session:generateDebugAssets UP-TO-DATE
+> Task :audio_session:mergeDebugAssets UP-TO-DATE
+> Task :device_info_plus:mergeDebugShaders UP-TO-DATE
+> Task :device_info_plus:compileDebugShaders NO-SOURCE
+> Task :device_info_plus:generateDebugAssets UP-TO-DATE
+> Task :device_info_plus:mergeDebugAssets UP-TO-DATE
+> Task :just_audio:mergeDebugShaders UP-TO-DATE
+> Task :just_audio:compileDebugShaders NO-SOURCE
+> Task :just_audio:generateDebugAssets UP-TO-DATE
+> Task :just_audio:mergeDebugAssets UP-TO-DATE
+> Task :on_audio_query_android:mergeDebugShaders UP-TO-DATE
+> Task :on_audio_query_android:compileDebugShaders NO-SOURCE
+> Task :on_audio_query_android:generateDebugAssets UP-TO-DATE
+> Task :on_audio_query_android:mergeDebugAssets UP-TO-DATE
+> Task :path_provider_android:mergeDebugShaders UP-TO-DATE
+> Task :path_provider_android:compileDebugShaders NO-SOURCE
+> Task :path_provider_android:generateDebugAssets UP-TO-DATE
+> Task :path_provider_android:mergeDebugAssets UP-TO-DATE
+> Task :permission_handler_android:mergeDebugShaders UP-TO-DATE
+> Task :permission_handler_android:compileDebugShaders NO-SOURCE
+> Task :permission_handler_android:generateDebugAssets UP-TO-DATE
+> Task :permission_handler_android:mergeDebugAssets UP-TO-DATE
+> Task :sqflite_android:mergeDebugShaders UP-TO-DATE
+> Task :sqflite_android:compileDebugShaders NO-SOURCE
+> Task :sqflite_android:generateDebugAssets UP-TO-DATE
+> Task :sqflite_android:mergeDebugAssets UP-TO-DATE
+> Task :app:mergeDebugAssets
+> Task :app:copyFlutterAssetsDebug
+> Task :app:generateDebugResValues UP-TO-DATE
+> Task :audio_service:generateDebugResValues UP-TO-DATE
+> Task :audio_service:generateDebugResources UP-TO-DATE
+> Task :audio_service:packageDebugResources UP-TO-DATE
+> Task :audio_session:generateDebugResValues UP-TO-DATE
+> Task :audio_session:generateDebugResources UP-TO-DATE
+> Task :audio_session:packageDebugResources UP-TO-DATE
+> Task :device_info_plus:generateDebugResValues UP-TO-DATE
+> Task :device_info_plus:generateDebugResources UP-TO-DATE
+> Task :device_info_plus:packageDebugResources UP-TO-DATE
+> Task :just_audio:generateDebugResValues UP-TO-DATE
+> Task :just_audio:generateDebugResources UP-TO-DATE
+> Task :just_audio:packageDebugResources UP-TO-DATE
+> Task :on_audio_query_android:generateDebugResValues UP-TO-DATE
+> Task :on_audio_query_android:generateDebugResources UP-TO-DATE
+> Task :on_audio_query_android:packageDebugResources UP-TO-DATE
+> Task :path_provider_android:generateDebugResValues UP-TO-DATE
+> Task :path_provider_android:generateDebugResources UP-TO-DATE
+> Task :path_provider_android:packageDebugResources UP-TO-DATE
+> Task :permission_handler_android:generateDebugResValues UP-TO-DATE
+> Task :permission_handler_android:generateDebugResources UP-TO-DATE
+> Task :permission_handler_android:packageDebugResources UP-TO-DATE
+> Task :sqflite_android:generateDebugResValues UP-TO-DATE
+> Task :sqflite_android:generateDebugResources UP-TO-DATE
+> Task :sqflite_android:packageDebugResources UP-TO-DATE
+> Task :app:mapDebugSourceSetPaths UP-TO-DATE
+> Task :app:generateDebugResources UP-TO-DATE
+> Task :app:mergeDebugResources UP-TO-DATE
+> Task :app:packageDebugResources UP-TO-DATE
+> Task :app:parseDebugLocalResources UP-TO-DATE
+> Task :app:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :app:extractDeepLinksDebug UP-TO-DATE
+> Task :audio_service:extractDeepLinksDebug UP-TO-DATE
+> Task :audio_service:processDebugManifest UP-TO-DATE
+> Task :audio_session:extractDeepLinksDebug UP-TO-DATE
+> Task :audio_session:processDebugManifest UP-TO-DATE
+> Task :device_info_plus:extractDeepLinksDebug UP-TO-DATE
+> Task :device_info_plus:processDebugManifest UP-TO-DATE
+> Task :just_audio:extractDeepLinksDebug UP-TO-DATE
+> Task :just_audio:processDebugManifest UP-TO-DATE
+> Task :on_audio_query_android:extractDeepLinksDebug UP-TO-DATE
+> Task :on_audio_query_android:processDebugManifest UP-TO-DATE
+> Task :path_provider_android:extractDeepLinksDebug UP-TO-DATE
+> Task :path_provider_android:processDebugManifest UP-TO-DATE
+> Task :permission_handler_android:extractDeepLinksDebug UP-TO-DATE
+> Task :permission_handler_android:processDebugManifest UP-TO-DATE
+> Task :sqflite_android:extractDeepLinksDebug UP-TO-DATE
+> Task :sqflite_android:processDebugManifest UP-TO-DATE
+> Task :app:processDebugMainManifest UP-TO-DATE
+> Task :app:outputDebugAppLinkSettings UP-TO-DATE
+> Task :app:processDebugManifest UP-TO-DATE
+> Task :app:processDebugManifestForPackage UP-TO-DATE
+> Task :audio_service:compileDebugLibraryResources UP-TO-DATE
+> Task :audio_service:parseDebugLocalResources UP-TO-DATE
+> Task :audio_service:generateDebugRFile UP-TO-DATE
+> Task :audio_session:compileDebugLibraryResources UP-TO-DATE
+> Task :audio_session:parseDebugLocalResources UP-TO-DATE
+> Task :audio_session:generateDebugRFile UP-TO-DATE
+> Task :device_info_plus:compileDebugLibraryResources UP-TO-DATE
+> Task :device_info_plus:parseDebugLocalResources UP-TO-DATE
+> Task :device_info_plus:generateDebugRFile UP-TO-DATE
+> Task :just_audio:compileDebugLibraryResources UP-TO-DATE
+> Task :just_audio:parseDebugLocalResources UP-TO-DATE
+> Task :just_audio:generateDebugRFile UP-TO-DATE
+> Task :on_audio_query_android:compileDebugLibraryResources UP-TO-DATE
+> Task :on_audio_query_android:parseDebugLocalResources UP-TO-DATE
+> Task :on_audio_query_android:generateDebugRFile UP-TO-DATE
+> Task :path_provider_android:compileDebugLibraryResources UP-TO-DATE
+> Task :path_provider_android:parseDebugLocalResources UP-TO-DATE
+> Task :path_provider_android:generateDebugRFile UP-TO-DATE
+> Task :permission_handler_android:compileDebugLibraryResources UP-TO-DATE
+> Task :permission_handler_android:parseDebugLocalResources UP-TO-DATE
+> Task :permission_handler_android:generateDebugRFile UP-TO-DATE
+> Task :sqflite_android:compileDebugLibraryResources UP-TO-DATE
+> Task :sqflite_android:parseDebugLocalResources UP-TO-DATE
+> Task :sqflite_android:generateDebugRFile UP-TO-DATE
+> Task :app:processDebugResources UP-TO-DATE
+> Task :audio_service:javaPreCompileDebug UP-TO-DATE
+> Task :audio_session:javaPreCompileDebug UP-TO-DATE
+> Task :audio_session:compileDebugJavaWithJavac UP-TO-DATE
+> Task :audio_session:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :audio_service:compileDebugJavaWithJavac UP-TO-DATE
+> Task :audio_service:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :device_info_plus:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :device_info_plus:compileDebugKotlin UP-TO-DATE
+> Task :device_info_plus:javaPreCompileDebug UP-TO-DATE
+> Task :device_info_plus:compileDebugJavaWithJavac NO-SOURCE
+> Task :device_info_plus:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :just_audio:javaPreCompileDebug UP-TO-DATE
+> Task :just_audio:compileDebugJavaWithJavac UP-TO-DATE
+> Task :just_audio:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :on_audio_query_android:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :on_audio_query_android:compileDebugKotlin UP-TO-DATE
+> Task :on_audio_query_android:javaPreCompileDebug UP-TO-DATE
+> Task :on_audio_query_android:compileDebugJavaWithJavac NO-SOURCE
+> Task :on_audio_query_android:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :path_provider_android:javaPreCompileDebug UP-TO-DATE
+> Task :path_provider_android:compileDebugJavaWithJavac UP-TO-DATE
+> Task :path_provider_android:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :permission_handler_android:javaPreCompileDebug UP-TO-DATE
+> Task :permission_handler_android:compileDebugJavaWithJavac UP-TO-DATE
+> Task :permission_handler_android:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :sqflite_android:javaPreCompileDebug UP-TO-DATE
+
+> Task :sqflite_android:compileDebugJavaWithJavac FAILED
+./gradlew : C:\Users\
+leora\AppData\Local\P
+ub\Cache\hosted\pub.d
+ev\sqflite_android-2.
+4.2+2\android\src\mai
+n\java\com\tekartik\s
+qflite\Utils.java:109
+: error: cannot find 
+symbol
+En línea: 1 
+Carácter: 1
++ ./gradlew 
+assembleDebug > 
+build_log.txt 2>&1
++ ~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~
+    + CategoryInfo   
+           : NotSpe  
+  cified: (C:\User   
+ s\leora\...not f    
+ind symbol:Strin    
+g) [], RemoteExc    
+eption
+    + FullyQualified 
+   ErrorId : Native  
+  CommandError
+ 
+        if (Build.VER
+SION.SDK_INT >= Build
+.VERSION_CODES.BAKLAV
+A) {
+                     
+                     
+              ^
+  symbol:   variable 
+BAKLAVA
+  location: class 
+VERSION_CODES
+C:\Users\leora\AppDat
+a\Local\Pub\Cache\hos
+ted\pub.dev\sqflite_a
+ndroid-2.4.2+2\androi
+d\src\main\java\com\t
+ekartik\sqflite\Utils
+.java:111: error: 
+cannot find symbol
+            return 
+Locale.of(language, 
+country, variant);
+                     
+    ^
+  symbol:   method of
+(String,String,String
+)
+  location: class 
+Locale
+C:\Users\leora\AppDat
+a\Local\Pub\Cache\hos
+ted\pub.dev\sqflite_a
+ndroid-2.4.2+2\androi
+d\src\main\java\com\t
+ekartik\sqflite\Utils
+.java:124: error: 
+cannot find symbol
+        if (Build.VER
+SION.SDK_INT >= Build
+.VERSION_CODES.BAKLAV
+A) { // Android 13 
+(API 33) and above
+                     
+                     
+              ^
+  symbol:   variable 
+BAKLAVA
+  location: class 
+VERSION_CODES
+C:\Users\leora\AppDat
+a\Local\Pub\Cache\hos
+ted\pub.dev\sqflite_a
+ndroid-2.4.2+2\androi
+d\src\main\java\com\t
+ekartik\sqflite\Utils
+.java:126: error: 
+cannot find symbol
+            return 
+thread.threadId();
+                     
+    ^
+  symbol:   method 
+threadId()
+  location: variable 
+thread of type Thread
+4 errors
+
+[Incubating] Problems report is available at: file:///C:/Users/leora/Documents/REMUH/build/reports/problems/problems-report.html
+
+FAILURE: Build 
+failed with an 
+exception.
+
+* What went wrong:
+Execution failed for 
+task ':sqflite_androi
+d:compileDebugJavaWit
+hJavac'.
+> Compilation 
+failed; see the 
+compiler output 
+below.
+  C:\Users\leora\AppD
+ata\Local\Pub\Cache\h
+osted\pub.dev\sqflite
+_android-2.4.2+2\andr
+oid\src\main\java\com
+\tekartik\sqflite\Uti
+ls.java:109: error: 
+cannot find symbol
+          if (Build.V
+ERSION.SDK_INT >= Bui
+ld.VERSION_CODES.BAKL
+AVA) {
+                     
+                     
+                ^
+    symbol:   
+variable BAKLAVA
+    location: class 
+VERSION_CODES
+  C:\Users\leora\AppD
+ata\Local\Pub\Cache\h
+osted\pub.dev\sqflite
+_android-2.4.2+2\andr
+oid\src\main\java\com
+\tekartik\sqflite\Uti
+ls.java:124: error: 
+cannot find symbol
+          if (Build.V
+ERSION.SDK_INT >= Bui
+ld.VERSION_CODES.BAKL
+AVA) { // Android 13 
+(API 33) and above
+                     
+                     
+                ^
+    symbol:   
+variable BAKLAVA
+    location: class 
+VERSION_CODES
+  C:\Users\leora\AppD
+ata\Local\Pub\Cache\h
+osted\pub.dev\sqflite
+_android-2.4.2+2\andr
+oid\src\main\java\com
+\tekartik\sqflite\Uti
+ls.java:111: error: 
+cannot find symbol
+              return 
+Locale.of(language, 
+country, variant);
+                     
+      ^
+    symbol:   method 
+of(String,String,Stri
+ng)
+    location: class 
+Locale
+  C:\Users\leora\AppD
+ata\Local\Pub\Cache\h
+osted\pub.dev\sqflite
+_android-2.4.2+2\andr
+oid\src\main\java\com
+\tekartik\sqflite\Uti
+ls.java:126: error: 
+cannot find symbol
+              return 
+thread.threadId();
+                     
+      ^
+    symbol:   method 
+threadId()
+    location: 
+variable thread of 
+type Thread
+  4 errors
+
+* Try:
+> Check your code 
+and dependencies to 
+fix the compilation 
+error(s)
+> Run with --scan to 
+get full insights.
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/8.14/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD FAILED in 5s
+136 actionable tasks: 6 executed, 130 up-to-date

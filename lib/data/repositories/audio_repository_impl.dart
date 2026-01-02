@@ -27,6 +27,9 @@ class AudioRepositoryImpl implements AudioRepository {
   @override
   Future<List<Track>> getDeviceTracks() async {
     final hasPermission = await _permissionService.requestStoragePermission();
+    // También solicitamos notificaciones para Android 13+
+    await _permissionService.requestNotificationPermission();
+
     if (hasPermission) {
       return await _localAudioSource.getAudioFiles();
     } else {
@@ -36,10 +39,28 @@ class AudioRepositoryImpl implements AudioRepository {
 
   @override
   Future<void> loadTrack(Track track) async {
-    // Optimization: Skip artwork processing here.
-    // The UI now handles artwork lazily using OnAudioQuery directly on the track ID.
-    // Passing the raw track prevents blocking the main thread with File I/O and byte decoding.
-    return _audioHandler.loadTrack(track);
+    // Para mostrar carátula en la notificación de sistema (android/ios),
+    // necesitamos un artUri (file:// o http://).
+    // Como on_audio_query nos da bytes, los guardamos temporalmente en el caché.
+    Track trackWithArt = track;
+
+    try {
+      final artworkBytes = await _localAudioSource.getArtwork(
+        int.parse(track.id),
+      );
+      if (artworkBytes != null) {
+        final tempDir = Directory.systemTemp;
+        final artFile = File(
+          '${tempDir.path}/notification_art_${track.id}.jpg',
+        );
+        await artFile.writeAsBytes(artworkBytes);
+        trackWithArt = track.copyWith(artworkPath: artFile.uri.toString());
+      }
+    } catch (e) {
+      // Si falla la carátula, seguimos con el track normal sin imagen
+    }
+
+    return _audioHandler.loadTrack(trackWithArt);
   }
 
   @override
@@ -85,6 +106,16 @@ class AudioRepositoryImpl implements AudioRepository {
   Track? get currentTrack {
     final item = _audioHandler.mediaItem.value;
     if (item == null) return null;
+    return _mapMediaItemToTrack(item);
+  }
+
+  @override
+  Stream<Track?> get currentTrackStream => _audioHandler.mediaItem.map((item) {
+    if (item == null) return null;
+    return _mapMediaItemToTrack(item);
+  });
+
+  Track _mapMediaItemToTrack(as_lib.MediaItem item) {
     return Track(
       id: item.id,
       title: item.title,
@@ -107,6 +138,9 @@ class AudioRepositoryImpl implements AudioRepository {
   @override
   Future<void> setShuffleMode(bool enabled) =>
       _audioHandler.setShuffleModeEnabled(enabled);
+
+  @override
+  Stream<bool> get skipRequestStream => _audioHandler.skipRequestStream;
 
   @override
   Future<bool> deleteTrackFile(Track track) async {

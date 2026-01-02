@@ -41,6 +41,12 @@ abstract class AudioRepository {
   /// Obtener la pista actual
   Track? get currentTrack;
 
+  /// Stream de la pista actual
+  Stream<Track?> get currentTrackStream;
+
+  /// Stream para peticiones de skip desde la notificación
+  Stream<bool> get skipRequestStream;
+
   /// Liberar recursos
   Future<void> dispose();
 

@@ -144,6 +144,9 @@ class LibraryViewModel extends StateNotifier<LibraryState> {
         lastAddedCount: added,
         lastScanTime: DateTime.now(),
       );
+
+      // Restaurar última sesión si el reproductor está vacío
+      _audioPlayer.restorePlayback(tracksWithMetadata);
     } catch (e) {
       state = state.copyWith(isScanning: false, error: e.toString());
     }

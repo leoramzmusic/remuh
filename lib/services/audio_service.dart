@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:audio_session/audio_session.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:just_audio/just_audio.dart';
@@ -11,6 +12,10 @@ import '../domain/repositories/audio_repository.dart';
 class AudioPlayerHandler extends BaseAudioHandler with QueueHandler {
   final _player = AudioPlayer();
 
+  // Stream para que el Notifier escuche peticiones de skip desde la notificación
+  final _skipRequestController = StreamController<bool>.broadcast();
+  Stream<bool> get skipRequestStream => _skipRequestController.stream;
+
   AudioPlayerHandler() {
     _init();
   }
@@ -19,54 +24,67 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler {
     final session = await AudioSession.instance;
     await session.configure(const AudioSessionConfiguration.music());
 
-    // Audio focus is handled automatically by just_audio + AudioSession
-    // When another app requests audio, just_audio will pause automatically
+    // Sincronizar estado inicial
+    _syncState();
 
-    // Propagar eventos de just_audio a audio_service
-    _player.playbackEventStream.listen(_broadcastState);
+    // Escuchar cambios de estado (play/pause/processing)
+    _player.playerStateStream.listen((_) => _syncState());
 
-    // Propagar errores
-    _player.playerStateStream.listen((state) {
-      if (state.processingState == ProcessingState.completed) {
-        _broadcastState(_player.playbackEvent);
-      }
-    });
+    // Escuchar eventos de la posición y buffer
+    _player.playbackEventStream.listen((_) => _syncState());
+
+    // Escuchar cambios en MediaItem para actualizar notificación inmediatamente
+    mediaItem.listen((_) => _syncState());
   }
 
-  /// Transforma eventos de just_audio a PlaybackState de audio_service
-  void _broadcastState(PlaybackEvent event) {
+  /// Sincroniza el estado de just_audio con audio_service
+  void _syncState() {
     final playing = _player.playing;
-    final queueIndex =
-        event.currentIndex; // Si usáramos ConcatenatingAudioSource
+    final processingState = _player.processingState;
 
-    playbackState.add(
-      playbackState.value.copyWith(
-        controls: [
-          MediaControl.skipToPrevious,
-          if (playing) MediaControl.pause else MediaControl.play,
-          MediaControl.skipToNext,
-          MediaControl.stop,
-        ],
-        systemActions: const {
-          MediaAction.seek,
-          MediaAction.seekForward,
-          MediaAction.seekBackward,
-        },
-        androidCompactActionIndices: const [0, 1, 2],
-        processingState: const {
-          ProcessingState.idle: AudioProcessingState.idle,
-          ProcessingState.loading: AudioProcessingState.loading,
-          ProcessingState.buffering: AudioProcessingState.buffering,
-          ProcessingState.ready: AudioProcessingState.ready,
-          ProcessingState.completed: AudioProcessingState.completed,
-        }[_player.processingState]!,
-        playing: playing,
-        updatePosition: _player.position,
-        bufferedPosition: _player.bufferedPosition,
-        speed: _player.speed,
-        queueIndex: queueIndex,
-      ),
+    Logger.info(
+      'Syncing Audio State: playing=$playing, processing=$processingState',
     );
+
+    final state = playbackState.value.copyWith(
+      controls: [
+        MediaControl.skipToPrevious,
+        if (playing) MediaControl.pause else MediaControl.play,
+        MediaControl.skipToNext,
+        MediaControl.stop,
+      ],
+      systemActions: const {
+        MediaAction.play,
+        MediaAction.pause,
+        MediaAction.stop,
+        MediaAction.skipToNext,
+        MediaAction.skipToPrevious,
+        MediaAction.seek,
+        MediaAction.seekForward,
+        MediaAction.seekBackward,
+      },
+      androidCompactActionIndices: const [0, 1, 2],
+      processingState:
+          const {
+            ProcessingState.idle: AudioProcessingState.idle,
+            ProcessingState.loading: AudioProcessingState.loading,
+            ProcessingState.buffering: AudioProcessingState.buffering,
+            ProcessingState.ready: AudioProcessingState.ready,
+            ProcessingState.completed: AudioProcessingState.completed,
+          }[processingState] ??
+          AudioProcessingState.idle,
+      playing: playing,
+      updatePosition: _player.position,
+      bufferedPosition: _player.bufferedPosition,
+      speed: _player.speed,
+      // Usar el índice del mediaItem actual si existe
+      queueIndex: 0,
+    );
+
+    Logger.info(
+      'Broadcasting PlaybackState: playing=${state.playing}, processing=${state.processingState}',
+    );
+    playbackState.add(state);
   }
 
   @override
@@ -83,35 +101,22 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler {
 
   @override
   Future<void> skipToNext() async {
-    // Si estamos usando BaseAudioHandler, este evento viene de la notificación
-    // Necesitamos notificar al UI o manejarlo internamente si supieramos la cola.
-    // Una opción rápida: notificar a través de un stream custom o customAction.
-    //
-    // Pero si el UI maneja la cola, el UI debería escuchar esto.
-    // Lo ideal es que el AudioHandler maneje la cola.
-    //
-    // Por ahora, para Milestone 3 rápido, podemos ignorarlo o intentar implementar
-    // cola básica si `AudioRepositoryImpl` lo soporta.
-    //
-    // Vamos a dejarlo vacío o loguear, ya que el UI tiene los botones.
-    // PERO la notificación necesita funcionar.
-    // Para que la notificación funcione, el Handler debe saber cambiar de canción.
-    //
-    // SOLUCION: El Repo llamará a skipToNext del Notifier, quien llama a loadTrack.
-    // PERO si el usuario toca la notificación... el Handler recibe la llamada.
-    // El Handler NO conoce al Notifier.
-    //
-    // Para resolver esto: El AudioPlayerNotifier debería escuchar playbackState.
-    // O mejor, pasamos una referencia/callback? No.
-    //
-    // Vamos a usar custom notifications o streams.
-    // O simplemente asumimos que loadTrack actualiza todo.
-    Logger.info('SkipToNext called from AudioHandler');
+    Logger.info('SkipToNext requested from Notification');
+    _skipRequestController.add(true); // true = next
   }
 
   @override
   Future<void> skipToPrevious() async {
-    Logger.info('SkipToPrevious called from AudioHandler');
+    Logger.info('SkipToPrevious requested from Notification');
+    _skipRequestController.add(false); // false = previous
+  }
+
+  @override
+  Future<void> onTaskRemoved() async {
+    // Si no hay música reproduciéndose, cerramos el servicio por completo
+    if (!playbackState.value.playing) {
+      await stop();
+    }
   }
 
   // Custom method to load a track from our App
@@ -134,6 +139,9 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler {
         duration: track.duration,
         artUri: artUri,
         extras: {'url': track.fileUrl, 'path': track.filePath},
+      );
+      Logger.info(
+        'Updating MediaItem: ${item.id} - ${item.title}, artUri: ${item.artUri}',
       );
       mediaItem.add(item);
 

@@ -27,8 +27,11 @@ class LocalAudioSource {
           duration: Duration(milliseconds: song.duration ?? 0),
           filePath: song.data,
           fileUrl: song.uri,
-          artworkPath:
-              null, // Artwork needs separate handling with on_audio_query
+          artworkPath: null,
+          year: int.tryParse(song.getMap['year']?.toString() ?? ''),
+          dateAdded: song.dateAdded != null
+              ? DateTime.fromMillisecondsSinceEpoch(song.dateAdded! * 1000)
+              : null,
         );
       }).toList();
     } catch (e) {

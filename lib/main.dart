@@ -32,16 +32,19 @@ void main() async {
     final config = AudioServiceConfig(
       androidNotificationChannelId: 'com.leo.remuh.channel.audio',
       androidNotificationChannelName: 'Music Playback',
-      androidNotificationOngoing: true,
+      androidNotificationOngoing: false,
       androidStopForegroundOnPause: false,
+      androidNotificationIcon: 'mipmap/ic_launcher',
     );
 
+    Logger.info('Initializing AudioService...');
     audioHandler = await AudioService.init(
       builder: () => AudioPlayerHandler(),
       config: config,
     );
+    Logger.info('AudioService initialized successfully with Handler');
   } catch (e) {
-    Logger.error('Failed to initialize AudioService', e);
+    Logger.error('CRITICAL: Failed to initialize AudioService via init()', e);
     // Initialize a functional handler even if the service binding fails initially
     // so the app UI can still load.
     audioHandler = AudioPlayerHandler();

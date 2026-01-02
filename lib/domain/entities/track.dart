@@ -11,6 +11,8 @@ class Track {
   final bool isFavorite;
   final int playCount;
   final DateTime? lastPlayedAt;
+  final int? year;
+  final DateTime? dateAdded;
 
   const Track({
     required this.id,
@@ -24,6 +26,8 @@ class Track {
     this.isFavorite = false,
     this.playCount = 0,
     this.lastPlayedAt,
+    this.year,
+    this.dateAdded,
   });
 
   Track copyWith({
@@ -38,6 +42,8 @@ class Track {
     bool? isFavorite,
     int? playCount,
     DateTime? lastPlayedAt,
+    int? year,
+    DateTime? dateAdded,
   }) {
     return Track(
       id: id ?? this.id,
@@ -51,6 +57,8 @@ class Track {
       isFavorite: isFavorite ?? this.isFavorite,
       playCount: playCount ?? this.playCount,
       lastPlayedAt: lastPlayedAt ?? this.lastPlayedAt,
+      year: year ?? this.year,
+      dateAdded: dateAdded ?? this.dateAdded,
     );
   }
 

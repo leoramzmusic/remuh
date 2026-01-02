@@ -186,47 +186,112 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
     this._seekAudio,
   ) : super(const AudioPlayerState()) {
     _init();
-    _restoreState();
+    _restoreSettings();
   }
 
   static const _keyLastTrackId = 'last_track_id';
   static const _keyLastPosition = 'last_position_ms';
+  static const _keyShuffleMode = 'shuffle_mode';
+  static const _keyRepeatMode = 'repeat_mode';
 
-  Future<void> _restoreState() async {
+  Future<void> _restoreSettings() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final shuffle = prefs.getBool(_keyShuffleMode) ?? false;
+      final repeatIndex =
+          prefs.getInt(_keyRepeatMode) ?? AudioRepeatMode.off.index;
+      final repeatMode = AudioRepeatMode.values[repeatIndex];
+
+      state = state.copyWith(shuffleMode: shuffle, repeatMode: repeatMode);
+      await _repository.setRepeatMode(repeatMode);
+      await _repository.setShuffleMode(shuffle);
+    } catch (e) {
+      Logger.error('Error restoring settings', e);
+    }
+  }
+
+  DateTime _lastPositionSave = DateTime.now();
+
+  Future<void> _saveState({bool force = false}) async {
+    try {
+      final trackId = state.currentTrack?.id;
+      final positionMs = state.position.inMilliseconds;
+
+      final now = DateTime.now();
+      // Throttle position saving unless forced (e.g. on pause or track change)
+      if (!force && now.difference(_lastPositionSave).inSeconds < 5) {
+        return;
+      }
+      _lastPositionSave = now;
+
+      final prefs = await SharedPreferences.getInstance();
+      if (trackId != null) {
+        await prefs.setString(_keyLastTrackId, trackId);
+        await prefs.setInt(_keyLastPosition, positionMs);
+      }
+      await prefs.setBool(_keyShuffleMode, state.shuffleMode);
+      await prefs.setInt(_keyRepeatMode, state.repeatMode.index);
+    } catch (e) {
+      // Ignore save errors to avoid UI disruption
+    }
+  }
+
+  Future<void> restorePlayback(List<Track> library) async {
+    if (library.isEmpty || state.currentTrack != null) return;
+
     try {
       final prefs = await SharedPreferences.getInstance();
       final lastTrackId = prefs.getString(_keyLastTrackId);
       final lastPositionMs = prefs.getInt(_keyLastPosition) ?? 0;
 
       if (lastTrackId != null) {
-        Logger.info(
-          'Restoring state for track: $lastTrackId at ${lastPositionMs}ms',
-        );
+        final track = library.where((t) => t.id == lastTrackId).firstOrNull;
+        if (track != null) {
+          Logger.info('Restoring last session: ${track.title}');
 
-        // We need the library to be loaded to find the track.
-        // For simplicity, we'll assume the library scan is triggered elsewhere.
-        // But here we can't easily wait for it without more complex logic.
-        // Alternative: The scan triggers this?
-        // For now, let's keep it simple: we just have the data.
+          state = state.copyWith(
+            currentTrack: track,
+            currentIndex: library.indexOf(track),
+            queue: library,
+            position: Duration(milliseconds: lastPositionMs),
+          );
+
+          await _repository.loadTrack(track);
+          await _repository.seek(Duration(milliseconds: lastPositionMs));
+
+          // Note: We don't call play() automatically here to avoid surprises.
+          // The user can press play when they see the mini-player.
+        }
       }
     } catch (e) {
-      Logger.error('Error restoring state', e);
-    }
-  }
-
-  Future<void> _saveState() async {
-    final trackId = state.currentTrack?.id;
-    final positionMs = state.position.inMilliseconds;
-
-    if (trackId != null) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_keyLastTrackId, trackId);
-      await prefs.setInt(_keyLastPosition, positionMs);
+      Logger.error('Error in restorePlayback', e);
     }
   }
 
   void _init() {
     Logger.info('Initializing AudioPlayerNotifier');
+
+    // Sincronizar track actual al inicio (por si ya hay algo sonando en background)
+    final initialTrack = _repository.currentTrack;
+    if (initialTrack != null) {
+      state = state.copyWith(currentTrack: initialTrack);
+    }
+
+    // Escuchar cambios en la pista actual (sync desde background)
+    _repository.currentTrackStream.listen((track) {
+      if (track != null && state.currentTrack?.id != track.id) {
+        state = state.copyWith(currentTrack: track);
+      }
+    });
+
+    // Escuchar peticiones de skip desde la notificación
+    _repository.skipRequestStream.listen((isNext) {
+      if (isNext) {
+        skipToNext();
+      } else {
+        skipToPrevious();
+      }
+    });
 
     // Escuchar cambios en el estado de reproducción
     _repository.playbackStateStream.listen((playbackState) {
@@ -238,21 +303,21 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
         final currentTrackId = state.currentTrack?.id;
         if (currentTrackId != null) {
           _trackRepository.incrementPlayCount(currentTrackId);
-          // Opcionalmente refrescar la biblioteca para que el UI vea el cambio
         }
         skipToNext();
       }
 
-      _saveState();
+      _saveState(
+        force:
+            playbackState == PlaybackState.paused ||
+            playbackState == PlaybackState.stopped,
+      );
     });
 
     // Escuchar cambios en la posición
     _repository.positionStream.listen((position) {
       state = state.copyWith(position: position);
-
-      // Save position periodically (e.g., every 5 seconds or on significant changes)
-      // To avoid writing to disk too often, we could throttle this.
-      // For now, let's just save on important events.
+      _saveState();
     });
 
     // Escuchar cambios en la duración
@@ -494,7 +559,7 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
 
     state = state.copyWith(queue: newQueue, currentIndex: newCurrentIndex);
 
-    _saveState();
+    _saveState(force: true);
   }
 
   /// Quitar pista de la cola
@@ -522,7 +587,7 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
 
     state = state.copyWith(queue: newQueue, currentIndex: newCurrentIndex);
 
-    _saveState();
+    _saveState(force: true);
   }
 
   /// Añadir pista al final de la cola
@@ -545,7 +610,7 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
       queue: newQueue,
       shuffledIndices: newShuffledIndices,
     );
-    _saveState();
+    _saveState(force: true);
   }
 
   /// Insertar pista para reproducir después de la actual
@@ -579,7 +644,7 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
       queue: newQueue,
       shuffledIndices: newShuffledIndices,
     );
-    _saveState();
+    _saveState(force: true);
   }
 
   /// Cargar una pista específica de la cola (índice absoluto de state.queue)
@@ -640,7 +705,7 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
             ? newQueue.firstWhere((t) => t.id == trackId)
             : state.currentTrack,
       );
-      _saveState();
+      _saveState(force: true);
     }
   }
 
@@ -660,7 +725,7 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
         currentIndex: isPlayingDeleted ? -1 : state.currentIndex,
         currentTrack: isPlayingDeleted ? null : state.currentTrack,
       );
-      _saveState();
+      _saveState(force: true);
     }
   }
 

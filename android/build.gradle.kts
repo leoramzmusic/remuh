@@ -1,9 +1,5 @@
-allprojects {
-    repositories {
-        google()
-        mavenCentral()
-    }
-}
+
+// Root build script for all subprojects
 
 val newBuildDir: Directory =
     rootProject.layout.buildDirectory
@@ -15,18 +11,24 @@ subprojects {
     val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
     project.layout.buildDirectory.value(newSubprojectBuildDir)
 
-    // Workaround for "Namespace not specified" error in some Flutter plugins
     project.afterEvaluate {
         if (project.hasProperty("android")) {
             val android = project.extensions.getByName("android") as com.android.build.gradle.BaseExtension
             
-            // Fix SDK Version (Safely update if needed)
+            // Force SDK Version to 35 (Android 15 stable)
+            android.compileSdkVersion(35)
             
-            // Fix SDK Version (Safely update if needed)
-            if (android.compileSdkVersion != null && android.compileSdkVersion!!.contains("35").not()) {
-                // Only upgrade if it's lower? Actually, let's just let plugins use what they define
-                // unless it's known to be too low.
-                // For now, let's REMOVE the force to resolve the BAKLAVA error.
+            if (android.defaultConfig.targetSdkVersion != null && android.defaultConfig.targetSdkVersion!!.apiLevel < 35) {
+                android.defaultConfig.targetSdkVersion(35)
+            }
+
+            // Force browser 1.8.0 to avoid SDK 36 requirement
+            project.configurations.all {
+                resolutionStrategy {
+                    force("androidx.browser:browser:1.8.0")
+                    force("androidx.core:core:1.15.0")
+                    force("androidx.core:core-ktx:1.15.0")
+                }
             }
             
             // Fix: Inject missing namespace if not specified by reading from AndroidManifest.xml
@@ -40,26 +42,24 @@ subprojects {
                             android.namespace = packageMatch.groupValues[1]
                         }
                     }
-                } catch (ignored: Exception) {
-                }
+                } catch (ignored: Exception) {}
                 
-                // Fallback if still null or if reading failed
                 if (android.namespace == null) {
                     android.namespace = "com.leo.remuh.${project.name.replace("-", "_").replace(".", "_")}"
                 }
             }
             
-            // Fix JVM Target (Force Java 17)
+            // Fix JVM Target
             android.compileOptions {
-                sourceCompatibility = JavaVersion.VERSION_17
-                targetCompatibility = JavaVersion.VERSION_17
+                sourceCompatibility = JavaVersion.VERSION_21
+                targetCompatibility = JavaVersion.VERSION_21
             }
         }
         
         // Fix Kotlin JVM Target
         project.tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile::class.java).configureEach {
             compilerOptions {
-                jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+                jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
             }
         }
     }
