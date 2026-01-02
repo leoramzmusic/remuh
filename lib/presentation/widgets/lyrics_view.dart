@@ -59,6 +59,7 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: widget.opacity),
+        borderRadius: BorderRadius.circular(24),
       ),
       child: _buildContent(lyricsState, activeIndex),
     );
@@ -120,7 +121,7 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
           child: ListView.builder(
             key: ValueKey(activeIndex), // Force rebuild to update styling
             controller: widget.scrollController,
-            itemCount: lyricsState.lines.length,
+            itemCount: lyricsState.lines.length + 1,
             padding: EdgeInsets.only(
               top: MediaQuery.of(context).size.height * 0.1,
               bottom: MediaQuery.of(context).size.height * 0.2,

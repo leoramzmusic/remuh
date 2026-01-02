@@ -26,14 +26,19 @@ void main() async {
 
   AudioPlayerHandler audioHandler;
   try {
+    // We use a final variable instead of a const literal to avoid
+    // "Evaluation of this constant expression throws an exception" errors
+    // that can occur in some environments during AudioService initialization.
+    final config = AudioServiceConfig(
+      androidNotificationChannelId: 'com.leo.remuh.channel.audio',
+      androidNotificationChannelName: 'Music Playback',
+      androidNotificationOngoing: true,
+      androidStopForegroundOnPause: false,
+    );
+
     audioHandler = await AudioService.init(
       builder: () => AudioPlayerHandler(),
-      config: AudioServiceConfig(
-        androidNotificationChannelId: 'com.leo.remuh.channel.audio',
-        androidNotificationChannelName: 'Music Playback',
-        androidNotificationOngoing: true,
-        androidStopForegroundOnPause: false, // Keep notification when paused
-      ),
+      config: config,
     );
   } catch (e) {
     Logger.error('Failed to initialize AudioService', e);
