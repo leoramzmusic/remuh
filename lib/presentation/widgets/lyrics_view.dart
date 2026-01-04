@@ -109,7 +109,7 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.grey[400]?.withOpacity(0.5),
+                color: Colors.grey[400]?.withValues(alpha: 0.5),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -158,12 +158,14 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
                       fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
                       color: isActive
                           ? Theme.of(context).colorScheme.primary
-                          : Colors.white.withOpacity(0.5),
+                          : Colors.white.withValues(alpha: 0.5),
                       shadows: [
                         Shadow(
                           offset: const Offset(0, 1),
                           blurRadius: 4.0,
-                          color: Colors.black.withOpacity(isActive ? 0.8 : 0.5),
+                          color: Colors.black.withValues(
+                            alpha: isActive ? 0.8 : 0.5,
+                          ),
                         ),
                       ],
                     ),

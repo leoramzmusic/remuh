@@ -249,50 +249,6 @@ class PersonalizationSettingsScreen extends ConsumerWidget {
       TransitionEffect.flip => 'Flip',
     };
   }
-
-  Future<void> _showTokenDialog(
-    BuildContext context,
-    WidgetRef ref,
-    String currentToken,
-  ) async {
-    final controller = TextEditingController(text: currentToken);
-    final newToken = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Configurar Genius API'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Pega tu Client Access Token de Genius:'),
-            const SizedBox(height: 12),
-            TextField(
-              controller: controller,
-              decoration: const InputDecoration(
-                hintText: 'Token aquí...',
-                border: OutlineInputBorder(),
-              ),
-              obscureText: true,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, controller.text),
-            child: const Text('Guardar'),
-          ),
-        ],
-      ),
-    );
-
-    if (newToken != null) {
-      ref.read(customizationProvider.notifier).setGeniusToken(newToken);
-    }
-  }
 }
 
 class _SectionHeader extends StatelessWidget {

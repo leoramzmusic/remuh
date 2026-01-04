@@ -79,8 +79,17 @@ class TrackArtwork extends ConsumerWidget {
   /// Pre-caches artwork bytes for a given track ID
   static Future<Uint8List?> cacheArtwork(String trackId) async {
     try {
+      // Validate ID is numeric
+      int? id;
+      try {
+        id = int.parse(trackId);
+      } catch (_) {
+        // Not a numeric ID (e.g. online track or test ID)
+        return null;
+      }
+
       final bytes = await OnAudioQuery().queryArtwork(
-        int.parse(trackId),
+        id,
         ArtworkType.AUDIO,
         size: 1000,
         quality: 100,

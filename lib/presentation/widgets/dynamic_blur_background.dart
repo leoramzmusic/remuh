@@ -33,8 +33,8 @@ class DynamicBlurBackground extends ConsumerWidget {
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [
-                dynamicColors[0].withOpacity(opacity),
-                dynamicColors[1].withOpacity(opacity * 0.8),
+                dynamicColors[0].withValues(alpha: opacity),
+                dynamicColors[1].withValues(alpha: opacity * 0.8),
                 Colors.black,
               ],
             ),

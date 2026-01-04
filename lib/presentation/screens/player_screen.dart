@@ -80,21 +80,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       orElse: () => [Colors.black, Colors.black],
     );
 
-    return WillPopScope(
-      onWillPop: () async {
+    return PopScope(
+      canPop: !_showLyrics && !_showQueue,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+
         if (_showLyrics) {
           setState(() {
             _showLyrics = false;
           });
-          return false; // Don't pop data, just close lyrics
-        }
-        if (_showQueue) {
+        } else if (_showQueue) {
           setState(() {
             _showQueue = false;
           });
-          return false;
         }
-        return true; // Pop screen
       },
       child: Scaffold(
         backgroundColor: Colors.black, // Dark mode strict
@@ -107,8 +106,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      dynamicColors[0].withOpacity(0.8),
-                      dynamicColors[1].withOpacity(0.6),
+                      dynamicColors[0].withValues(alpha: 0.8),
+                      dynamicColors[1].withValues(alpha: 0.6),
                       Colors.black,
                     ],
                     begin: Alignment.topCenter,
@@ -117,7 +116,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 ),
               ),
               // Subtle overlay to ensure text readability if needed, or rely on dark colors
-              Container(color: Colors.black.withOpacity(0.3)),
+              Container(color: Colors.black.withValues(alpha: 0.3)),
               Column(
                 children: [
                   if (!isLandscape) _buildTopBar(context, currentTrack),
@@ -158,7 +157,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       // Barrier (Tap to close)
                       GestureDetector(
                         onTap: () => setState(() => _showLyrics = false),
-                        child: Container(color: Colors.black.withOpacity(0.3)),
+                        child: Container(
+                          color: Colors.black.withValues(alpha: 0.3),
+                        ),
                       ),
                       // Draggable Sheet
                       TweenAnimationBuilder<double>(
@@ -200,13 +201,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                     decoration: BoxDecoration(
                                       color: Theme.of(context)
                                           .scaffoldBackgroundColor
-                                          .withOpacity(0.5), // Semi-transparent
+                                          .withValues(
+                                            alpha: 0.5,
+                                          ), // Semi-transparent
                                       borderRadius: const BorderRadius.vertical(
                                         top: Radius.circular(24),
                                       ),
                                       boxShadow: [
                                         BoxShadow(
-                                          color: Colors.black.withOpacity(0.3),
+                                          color: Colors.black.withValues(
+                                            alpha: 0.3,
+                                          ),
                                           blurRadius: 20,
                                           spreadRadius: 5,
                                         ),
@@ -269,7 +274,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       // Barrier
                       GestureDetector(
                         onTap: () => setState(() => _showQueue = false),
-                        child: Container(color: Colors.black.withOpacity(0.3)),
+                        child: Container(
+                          color: Colors.black.withValues(alpha: 0.3),
+                        ),
                       ),
                       // Pull-up Sheet
                       NotificationListener<DraggableScrollableNotification>(

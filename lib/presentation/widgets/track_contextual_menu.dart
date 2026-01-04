@@ -184,6 +184,9 @@ class TrackContextualMenu {
               final success = await ref
                   .read(libraryViewModelProvider.notifier)
                   .deleteTrack(track);
+
+              if (!context.mounted) return;
+
               Navigator.pop(context);
 
               ScaffoldMessenger.of(context).showSnackBar(

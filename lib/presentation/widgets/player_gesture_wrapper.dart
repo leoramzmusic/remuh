@@ -28,7 +28,7 @@ class _PlayerGestureWrapperState extends ConsumerState<PlayerGestureWrapper> {
     final screenHeight = MediaQuery.of(context).size.height;
     final dynamicColorsAsync = ref.watch(dynamicColorsProvider);
     final backgroundColor = dynamicColorsAsync.maybeWhen(
-      data: (colors) => colors[0].withOpacity(0.8),
+      data: (colors) => colors[0].withValues(alpha: 0.8),
       orElse: () => Theme.of(context).scaffoldBackgroundColor,
     );
 

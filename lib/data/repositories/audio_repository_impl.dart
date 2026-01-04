@@ -45,16 +45,23 @@ class AudioRepositoryImpl implements AudioRepository {
     Track trackWithArt = track;
 
     try {
-      final artworkBytes = await _localAudioSource.getArtwork(
-        int.parse(track.id),
-      );
-      if (artworkBytes != null) {
-        final tempDir = Directory.systemTemp;
-        final artFile = File(
-          '${tempDir.path}/notification_art_${track.id}.jpg',
-        );
-        await artFile.writeAsBytes(artworkBytes);
-        trackWithArt = track.copyWith(artworkPath: artFile.uri.toString());
+      int? trackId;
+      try {
+        trackId = int.parse(track.id);
+      } catch (_) {
+        // ID not numeric (e.g. test ID), skip local artwork fetch
+      }
+
+      if (trackId != null) {
+        final artworkBytes = await _localAudioSource.getArtwork(trackId);
+        if (artworkBytes != null) {
+          final tempDir = Directory.systemTemp;
+          final artFile = File(
+            '${tempDir.path}/notification_art_${track.id}.jpg',
+          );
+          await artFile.writeAsBytes(artworkBytes);
+          trackWithArt = track.copyWith(artworkPath: artFile.uri.toString());
+        }
       }
     } catch (e) {
       // Si falla la carátula, seguimos con el track normal sin imagen

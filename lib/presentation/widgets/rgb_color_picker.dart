@@ -22,9 +22,9 @@ class _RGBColorPickerState extends State<RGBColorPicker> {
   @override
   void initState() {
     super.initState();
-    _red = widget.initialColor.red;
-    _green = widget.initialColor.green;
-    _blue = widget.initialColor.blue;
+    _red = (widget.initialColor.r * 255).round();
+    _green = (widget.initialColor.g * 255).round();
+    _blue = (widget.initialColor.b * 255).round();
   }
 
   Color get _currentColor => Color.fromARGB(255, _red, _green, _blue);

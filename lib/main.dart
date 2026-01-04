@@ -30,11 +30,12 @@ void main() async {
     // "Evaluation of this constant expression throws an exception" errors
     // that can occur in some environments during AudioService initialization.
     final config = AudioServiceConfig(
-      androidNotificationChannelId: 'com.leo.remuh.channel.audio',
+      androidNotificationChannelId:
+          'com.leo.remuh.channel.audio.v2', // Changed to reset potential user settings
       androidNotificationChannelName: 'Music Playback',
-      androidNotificationOngoing: false,
-      androidStopForegroundOnPause: false,
-      androidNotificationIcon: 'mipmap/ic_launcher',
+      androidNotificationOngoing: true,
+      androidStopForegroundOnPause: true,
+      androidNotificationIcon: 'drawable/ic_notification',
     );
 
     Logger.info('Initializing AudioService...');

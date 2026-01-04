@@ -95,7 +95,7 @@ class EqualizerPresetsDropdown extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         DropdownButtonFormField<String>(
-          value: selectedPreset,
+          initialValue: selectedPreset,
           decoration: InputDecoration(
             filled: true,
             fillColor: Colors.white.withValues(alpha: 0.05),

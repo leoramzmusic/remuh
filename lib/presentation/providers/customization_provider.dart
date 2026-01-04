@@ -145,7 +145,8 @@ class CustomizationNotifier extends StateNotifier<CustomizationState> {
     final isLightTheme = prefs.getBool(_isLightKey) ?? false;
     final isTransparent = prefs.getBool(_isTransparentKey) ?? true;
     final isAdaptive = prefs.getBool(_isAdaptiveKey) ?? true;
-    final customColorInt = prefs.getInt(_customColorKey) ?? Colors.white.value;
+    final customColorInt =
+        prefs.getInt(_customColorKey) ?? Colors.white.toARGB32();
 
     final customColor = Color(customColorInt);
     final accentColor = colorName == 'Personalizado'
@@ -191,7 +192,7 @@ class CustomizationNotifier extends StateNotifier<CustomizationState> {
     );
 
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_customColorKey, color.value);
+    await prefs.setInt(_customColorKey, color.toARGB32());
     await prefs.setString(_colorKey, 'Personalizado');
   }
 
