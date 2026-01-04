@@ -456,9 +456,13 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
         final nextTrack = state.queue[nextIndex];
         Logger.info('Skipping to next: ${nextTrack.title}');
 
-        state = state.copyWith(currentIndex: nextIndex);
+        // Update state immediately so UI can react and show new metadata/artwork
+        state = state.copyWith(
+          currentIndex: nextIndex,
+          currentTrack: nextTrack,
+        );
+
         await _loadTrack(nextTrack);
-        state = state.copyWith(currentTrack: nextTrack);
         await _playAudio();
       }
     } catch (e) {
@@ -496,9 +500,13 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
         final prevTrack = state.queue[prevIndex];
         Logger.info('Skipping to previous: ${prevTrack.title}');
 
-        state = state.copyWith(currentIndex: prevIndex);
+        // Update state immediately so UI can react and show new metadata/artwork
+        state = state.copyWith(
+          currentIndex: prevIndex,
+          currentTrack: prevTrack,
+        );
+
         await _loadTrack(prevTrack);
-        state = state.copyWith(currentTrack: prevTrack);
         await _playAudio();
       } else {
         await seekTo(Duration.zero);

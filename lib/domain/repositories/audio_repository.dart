@@ -1,4 +1,5 @@
 import '../entities/track.dart';
+import '../entities/scan_progress.dart';
 
 /// Estados de reproducción
 enum PlaybackState { stopped, playing, paused, buffering, completed, error }
@@ -16,6 +17,9 @@ abstract class AudioRepository {
 
   /// Obtener pistas del dispositivo
   Future<List<Track>> getDeviceTracks();
+
+  /// Obtener pistas del dispositivo con progreso (Stream)
+  Stream<ScanProgress> scanDeviceTracks();
 
   /// Reproducir
   Future<void> play();

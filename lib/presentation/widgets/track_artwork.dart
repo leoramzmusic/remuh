@@ -12,6 +12,9 @@ class TrackArtwork extends ConsumerWidget {
   final double borderRadius;
   final IconData? placeholderIcon;
 
+  // Simple in-memory cache to speed up loading and prevent flickering on frequent reloads
+  static final Map<String, Uint8List> _artworkCache = {};
+
   const TrackArtwork({
     super.key,
     required this.trackId,
@@ -26,17 +29,17 @@ class TrackArtwork extends ConsumerWidget {
     final icons = AppIconSet.fromStyle(customization.iconStyle);
     final actualPlaceholder = placeholderIcon ?? icons.lyrics;
 
-    // First, try to find a local cover file if we have a path (not implemented yet in Track entity, but planned)
-    // For now, we'll use OnAudioQuery as the primary source but optimized.
-
     return SizedBox(
       width: size,
       height: size,
       child: FutureBuilder<Uint8List?>(
         future: _getArtworkBytes(trackId),
         builder: (context, snapshot) {
+          Widget content;
+
           if (snapshot.hasData && snapshot.data != null) {
-            return AspectRatio(
+            content = AspectRatio(
+              key: ValueKey('art_$trackId'),
               aspectRatio: 1,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(borderRadius),
@@ -45,13 +48,15 @@ class TrackArtwork extends ConsumerWidget {
                   width: size,
                   height: size,
                   fit: BoxFit.cover,
-                  filterQuality: FilterQuality.high,
+                  filterQuality:
+                      FilterQuality.medium, // Optimized for performance
                   gaplessPlayback: true,
                 ),
               ),
             );
           } else {
-            return Container(
+            content = Container(
+              key: const ValueKey('placeholder'),
               width: size,
               height: size,
               decoration: BoxDecoration(
@@ -67,34 +72,57 @@ class TrackArtwork extends ConsumerWidget {
               ),
             );
           }
+
+          return AnimatedSwitcher(
+            duration: const Duration(milliseconds: 300),
+            switchInCurve: Curves.easeInOut,
+            switchOutCurve: Curves.easeInOut,
+            transitionBuilder: (Widget child, Animation<double> animation) {
+              return FadeTransition(opacity: animation, child: child);
+            },
+            child: content,
+          );
         },
       ),
     );
   }
 
   Future<Uint8List?> _getArtworkBytes(String trackId) async {
+    // Check cache first
+    if (_artworkCache.containsKey(trackId)) {
+      return _artworkCache[trackId];
+    }
     return cacheArtwork(trackId);
   }
 
   /// Pre-caches artwork bytes for a given track ID
   static Future<Uint8List?> cacheArtwork(String trackId) async {
+    // Check cache first
+    if (_artworkCache.containsKey(trackId)) {
+      return _artworkCache[trackId];
+    }
+
     try {
       // Validate ID is numeric
       int? id;
       try {
         id = int.parse(trackId);
       } catch (_) {
-        // Not a numeric ID (e.g. online track or test ID)
         return null;
       }
 
       final bytes = await OnAudioQuery().queryArtwork(
         id,
         ArtworkType.AUDIO,
-        size: 1000,
+        size: 500, // Reduced from 1000 for performance
         quality: 100,
         format: ArtworkFormat.JPEG,
       );
+
+      if (bytes != null) {
+        _artworkCache[trackId] = bytes;
+      }
+
       return bytes;
     } catch (e) {
       Logger.error('Error fetching/caching artwork for $trackId: $e');

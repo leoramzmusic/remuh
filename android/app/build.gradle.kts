@@ -41,13 +41,24 @@ android {
     }
 
     buildTypes {
+        getByName("debug") {
+            // Aseguramos que no haya sufijo para evitar duplicados
+            applicationIdSuffix = null
+            signingConfig = signingConfigs.getByName("debug")
+        }
+        getByName("profile") {
+            // Aseguramos que no haya sufijo para evitar duplicados
+            applicationIdSuffix = null
+            signingConfig = signingConfigs.getByName("debug")
+        }
         release {
             val releaseConfig = signingConfigs.getByName("release")
-            if (releaseConfig.storeFile != null) {
-                signingConfig = releaseConfig
+            signingConfig = if (releaseConfig.storeFile != null) {
+                releaseConfig
             } else {
-                signingConfig = signingConfigs.getByName("debug")
+                signingConfigs.getByName("debug")
             }
+            
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(

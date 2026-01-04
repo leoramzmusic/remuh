@@ -100,8 +100,17 @@ class LibraryScreen extends ConsumerWidget {
               ),
             ),
             body: RefreshIndicator(
-              onRefresh: () =>
-                  ref.read(libraryViewModelProvider.notifier).scanLibrary(),
+              onRefresh: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Actualizando tu biblioteca...'),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+                return ref
+                    .read(libraryViewModelProvider.notifier)
+                    .scanLibrary();
+              },
               child: TabBarView(
                 children: [
                   _buildTracksList(context, ref, libraryState, icons),
@@ -125,11 +134,15 @@ class LibraryScreen extends ConsumerWidget {
     AppIconSet icons,
   ) {
     final tracks = ref.watch(sortedTracksProvider);
+
+    // If we have no tracks and we are NOT scanning, show the empty state
     if (tracks.isEmpty && !state.isScanning) {
       return _buildEmptyState(ref, icons);
     }
+
+    // If we are scanning and have no tracks yet, show a dedicated scanning screen
     if (state.isScanning && tracks.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return _buildFullscreenScanningState(context, state);
     }
 
     return ListView.builder(
@@ -244,11 +257,63 @@ class LibraryScreen extends ConsumerWidget {
                 ],
               ),
               const SizedBox(height: 4),
-              Text(
-                '${tracks.length} canciones',
-                style: const TextStyle(color: Colors.white70, fontSize: 13),
-              ),
-              const SizedBox(height: 16),
+              // Progress indicator if scanning
+              if (state.isScanning && state.scanProgress != null) ...[
+                const SizedBox(height: 8),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: state.scanProgress!.percentage / 100,
+                    backgroundColor: Colors.white12,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        state.scanProgress!.statusMessage,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '${state.scanProgress!.processed}/${state.scanProgress!.total}',
+                      style: const TextStyle(
+                        color: Colors.white60,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+                if (state.scanProgress!.currentItem != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    state.scanProgress!.currentItem!,
+                    style: const TextStyle(
+                      color: Colors.white60,
+                      fontSize: 10,
+                      fontStyle: FontStyle.italic,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+                const SizedBox(height: 16),
+              ] else ...[
+                Text(
+                  '${tracks.length} canciones',
+                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                ),
+                const SizedBox(height: 16),
+              ],
             ],
           );
         }
@@ -391,6 +456,61 @@ class LibraryScreen extends ConsumerWidget {
     );
   }
 
+  Widget _buildFullscreenScanningState(
+    BuildContext context,
+    LibraryState state,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.all(40),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const SizedBox(
+              height: 80,
+              width: 80,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            const SizedBox(height: 32),
+            Text(
+              state.scanProgress?.statusMessage ?? 'Preparando biblioteca...',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
+            if (state.scanProgress != null &&
+                state.scanProgress!.total > 0) ...[
+              const SizedBox(height: 16),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: LinearProgressIndicator(
+                  value: state.scanProgress!.percentage / 100,
+                  minHeight: 8,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '${state.scanProgress!.processed} de ${state.scanProgress!.total} canciones',
+                style: const TextStyle(color: Colors.white60),
+              ),
+            ],
+            const SizedBox(height: 24),
+            Text(
+              state.scanProgress != null && state.scanProgress!.total > 0
+                  ? 'Organizando tu gran colección...'
+                  : 'Estamos preparando tu música...',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white38,
+                fontSize: 13,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildEmptyState(WidgetRef ref, AppIconSet icons) {
     return Center(
       child: Column(
@@ -403,8 +523,9 @@ class LibraryScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
           const Text(
-            'No se encontró música.\nAsegúrate de dar permisos.',
+            'No pudimos encontrar canciones en tu dispositivo.\n¿Están en una carpeta diferente o falta algún permiso?',
             textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.white70),
           ),
           const SizedBox(height: 16),
           ElevatedButton(

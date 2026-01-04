@@ -11,6 +11,7 @@ import '../domain/repositories/audio_repository.dart';
 /// Handler de audio para background playback
 class AudioPlayerHandler extends BaseAudioHandler with QueueHandler {
   final _player = AudioPlayer();
+  String? _lastLoadedTrackId; // Track identity to avoid redundant loads
 
   // Stream para que el Notifier escuche peticiones de skip desde la notificación
   final _skipRequestController = StreamController<bool>.broadcast();
@@ -122,6 +123,14 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler {
   // Custom method to load a track from our App
   Future<void> loadTrack(Track track) async {
     try {
+      if (_lastLoadedTrackId == track.id &&
+          _player.audioSource != null &&
+          _player.processingState != ProcessingState.idle) {
+        Logger.info('Track ${track.title} already active, skipping load.');
+        return;
+      }
+      _lastLoadedTrackId = track.id;
+
       Logger.info('Loading track in Handler: ${track.title}');
 
       // Obtener artUri del track (ya preparado por el repositorio)

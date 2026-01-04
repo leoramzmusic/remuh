@@ -22,6 +22,7 @@ import '../widgets/lyrics_actions_sheet.dart';
 import '../../domain/repositories/audio_repository.dart';
 import '../widgets/shuffle_indicator.dart';
 import '../widgets/player_gesture_wrapper.dart';
+import '../../core/utils/logger.dart';
 
 /// Pantalla principal del reproductor - Rediseñada
 class PlayerScreen extends ConsumerStatefulWidget {
@@ -36,6 +37,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Timer? _debounceTimer; // Timer for debouncing swipes
   bool _showLyrics = false;
   bool _showQueue = false;
+  bool _isProgrammaticPageChange =
+      false; // Flag to skip loading on programmatic jumps
+  Track? _lastStableTrack; // To avoid empty UI during transitions
 
   @override
   void initState() {
@@ -74,11 +78,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     // Listeners for side effects (artwork precache, page controller)
     _setupListeners(queue);
 
+    // Preserve the last known track when loading or when currentTrack is null for a split second
+    final displayedTrack = currentTrack ?? _lastStableTrack;
+    if (currentTrack != null) {
+      _lastStableTrack = currentTrack;
+    }
+
     final dynamicColorsAsync = ref.watch(dynamicColorsProvider);
-    final dynamicColors = dynamicColorsAsync.maybeWhen(
-      data: (colors) => colors,
-      orElse: () => [Colors.black, Colors.black],
-    );
+    // Use the last known value during loading to avoid the "gray flash"
+    final dynamicColors =
+        dynamicColorsAsync.value ?? [Colors.black, Colors.black];
 
     return PopScope(
       canPop: !_showLyrics && !_showQueue,
@@ -119,12 +128,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               Container(color: Colors.black.withValues(alpha: 0.3)),
               Column(
                 children: [
-                  if (!isLandscape) _buildTopBar(context, currentTrack),
+                  if (!isLandscape) _buildTopBar(context, displayedTrack),
                   Expanded(
                     child: isLandscape
                         ? _buildLandscapeDashboard(
                             context,
-                            currentTrack,
+                            displayedTrack,
                             queue,
                             currentIndex,
                             isPlaying,
@@ -135,7 +144,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           )
                         : _buildMiddleSection(
                             context,
-                            currentTrack,
+                            displayedTrack,
                             queue,
                             currentIndex,
                             isPlaying,
@@ -145,7 +154,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                             shuffleMode,
                           ),
                   ),
-                  if (!isLandscape) _buildBottomBar(context, currentTrack),
+                  if (!isLandscape) _buildBottomBar(context, displayedTrack),
                 ],
               ),
 
@@ -333,13 +342,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       if (next >= 0 &&
           _pageController.hasClients &&
           _pageController.page?.round() != next) {
+        _isProgrammaticPageChange = true;
         _pageController.jumpToPage(next);
+        // Reset after a short delay to allow onPageChanged to fire and be ignored
+        Future.delayed(const Duration(milliseconds: 100), () {
+          if (mounted) _isProgrammaticPageChange = false;
+        });
       }
     });
   }
 
   // 1. TopBar
-  Widget _buildTopBar(BuildContext context, Track? currentTrack) {
+  Widget _buildTopBar(BuildContext context, Track? displayedTrack) {
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -388,8 +402,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     size: 24,
                   ),
                   onPressed: () {
-                    if (currentTrack != null) {
-                      _showTrackActions(context, currentTrack);
+                    if (displayedTrack != null) {
+                      _showTrackActions(context, displayedTrack);
                     }
                   },
                 ),
@@ -413,7 +427,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   // 2. Middle Section
   Widget _buildMiddleSection(
     BuildContext context,
-    Track? currentTrack,
+    Track? displayedTrack,
     List<Track> queue,
     int currentIndex,
     bool isPlaying,
@@ -453,7 +467,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                   : MediaQuery.of(context).size.width * 0.8)
                               .clamp(150.0, 400.0),
                       child: _buildAlbumCover(
-                        currentTrack,
+                        displayedTrack,
                         queue,
                         currentIndex,
                         false,
@@ -464,7 +478,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   SizedBox(height: isSmallScreen ? 16 : 24),
 
                   // Song Info
-                  _buildSongInfo(currentTrack),
+                  _buildSongInfo(displayedTrack),
 
                   SizedBox(height: isSmallScreen ? 20 : 32),
 
@@ -495,25 +509,39 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     );
   }
 
-  Widget _buildSongInfo(Track? currentTrack) {
+  Widget _buildSongInfo(Track? track) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 32.0),
       child: Column(
         children: [
-          MarqueeText(
-            text: currentTrack?.title ?? 'No Track Playing',
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 300),
+            transitionBuilder: (Widget child, Animation<double> animation) {
+              return FadeTransition(opacity: animation, child: child);
+            },
+            child: MarqueeText(
+              key: ValueKey('title_${track?.id ?? 'none'}'),
+              text: track?.title ?? 'No Track Playing',
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+              height: 32,
             ),
-            height: 32,
           ),
           const SizedBox(height: 8),
-          MarqueeText(
-            text: currentTrack?.artist ?? 'Unknown Artist',
-            style: const TextStyle(fontSize: 18, color: Colors.white60),
-            height: 24,
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 300),
+            transitionBuilder: (Widget child, Animation<double> animation) {
+              return FadeTransition(opacity: animation, child: child);
+            },
+            child: MarqueeText(
+              key: ValueKey('artist_${track?.id ?? 'none'}'),
+              text: track?.artist ?? 'Unknown Artist',
+              style: const TextStyle(fontSize: 18, color: Colors.white60),
+              height: 24,
+            ),
           ),
         ],
       ),
@@ -681,7 +709,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   Widget _buildLandscapeDashboard(
     BuildContext context,
-    Track? currentTrack,
+    Track? displayedTrack,
     List<Track> queue,
     int currentIndex,
     bool isPlaying,
@@ -720,8 +748,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 IconButton(
                   icon: const Icon(Icons.more_vert, color: Colors.white),
                   onPressed: () {
-                    if (currentTrack != null) {
-                      _showTrackActions(context, currentTrack);
+                    if (displayedTrack != null) {
+                      _showTrackActions(context, displayedTrack);
                     }
                   },
                   tooltip: 'Track actions',
@@ -746,7 +774,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       child: AspectRatio(
                         aspectRatio: 1,
                         child: _buildAlbumCover(
-                          currentTrack,
+                          displayedTrack,
                           queue,
                           currentIndex,
                           true,
@@ -761,7 +789,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        _buildSongInfo(currentTrack),
+                        _buildSongInfo(displayedTrack),
                         const SizedBox(height: 16),
                         const Padding(
                           padding: EdgeInsets.symmetric(horizontal: 16.0),
@@ -789,7 +817,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   // 3. BottomBar
-  Widget _buildBottomBar(BuildContext context, Track? currentTrack) {
+  Widget _buildBottomBar(BuildContext context, Track? displayedTrack) {
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.only(bottom: 16.0, top: 8.0),
@@ -799,15 +827,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             IconButton(
               icon: const Icon(Icons.album, color: Colors.white),
               onPressed: () {
-                if (currentTrack?.album != null) {
+                if (displayedTrack?.album != null) {
                   final albumTracks = ref
                       .read(libraryViewModelProvider.notifier)
-                      .getTracksByAlbum(currentTrack!.album!);
+                      .getTracksByAlbum(displayedTrack!.album!);
                   Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (_) => EntityDetailScreen(
-                        title: currentTrack.album!,
+                        title: displayedTrack.album!,
                         tracks: albumTracks,
                       ),
                     ),
@@ -828,15 +856,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             IconButton(
               icon: const Icon(Icons.person, color: Colors.white),
               onPressed: () {
-                if (currentTrack?.artist != null) {
+                if (displayedTrack?.artist != null) {
                   final artistTracks = ref
                       .read(libraryViewModelProvider.notifier)
-                      .getTracksByArtist(currentTrack!.artist!);
+                      .getTracksByArtist(displayedTrack!.artist!);
                   Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (_) => EntityDetailScreen(
-                        title: currentTrack.artist!,
+                        title: displayedTrack.artist!,
                         tracks: artistTracks,
                       ),
                     ),
@@ -863,6 +891,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     return PageView.builder(
       controller: _pageController,
       onPageChanged: (index) {
+        if (_isProgrammaticPageChange) {
+          Logger.info('PageView: Ignoring programmatic change to index $index');
+          return;
+        }
+
         // Debounce the audio loading to prevent "Connection aborted" crashes
         _debounceTimer?.cancel();
         _debounceTimer = Timer(const Duration(milliseconds: 500), () {

@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:audio_service/audio_service.dart' as as_lib;
 
 import '../../domain/entities/track.dart';
+import '../../domain/entities/scan_progress.dart';
 import '../../domain/repositories/audio_repository.dart';
 import '../../services/audio_service.dart';
 import '../../services/permission_service.dart';
@@ -25,8 +26,17 @@ class AudioRepositoryImpl implements AudioRepository {
     // Initialization is handled by AudioService.init in main.dart
   }
 
+  List<Track>? _cachedTracks;
+
   @override
   Future<List<Track>> getDeviceTracks() async {
+    // Si acabamos de escanear con el stream, devolvemos el caché
+    if (_cachedTracks != null) {
+      final results = _cachedTracks!;
+      // Importante: No limpiamos el caché aquí porque scanLibrary lo llama justo después
+      return results;
+    }
+
     Logger.info('AudioRepository: Requesting storage permission...');
     final hasPermission = await _permissionService.requestStoragePermission();
 
@@ -37,12 +47,115 @@ class AudioRepositoryImpl implements AudioRepository {
 
     if (hasPermission) {
       Logger.info('AudioRepository: Fetching files from LocalAudioSource...');
-      return await _localAudioSource.getAudioFiles();
+      _cachedTracks = await _localAudioSource.getAudioFiles();
+      return _cachedTracks!;
     } else {
       Logger.warning(
         'AudioRepository: No storage permission, returning empty list',
       );
       return [];
+    }
+  }
+
+  String _getEmotionalMessage(double percentage) {
+    if (percentage < 20) return 'Calentando motores...';
+    if (percentage < 40) return 'Buscando tus joyas musicales...';
+    if (percentage < 60) return 'Organizando el ritmo...';
+    if (percentage < 80) return 'Ya casi tenemos todo listo...';
+    return 'Dando los últimos toques...';
+  }
+
+  @override
+  Stream<ScanProgress> scanDeviceTracks() async* {
+    Logger.info('AudioRepository: Starting scan with progress...');
+
+    yield ScanProgress(
+      processed: 0,
+      total: 0,
+      percentage: 0,
+      statusMessage: 'Iniciando sistema...',
+    );
+
+    final hasPermission = await _permissionService.requestStoragePermission();
+    await _permissionService.requestNotificationPermission();
+
+    if (!hasPermission) {
+      Logger.warning('AudioRepository: No permission to scan');
+      yield ScanProgress(
+        processed: 0,
+        total: 0,
+        percentage: 0,
+        statusMessage: 'Acceso denegado. Revisa tus permisos.',
+      );
+      return;
+    }
+
+    yield ScanProgress(
+      processed: 0,
+      total: 0,
+      percentage: 0,
+      statusMessage: 'Explorando tus archivos...',
+    );
+
+    try {
+      // Limpiar caché anterior
+      _cachedTracks = null;
+
+      final tracks = await _localAudioSource.getAudioFiles();
+      final total = tracks.length;
+      _cachedTracks = tracks;
+
+      if (total == 0) {
+        yield ScanProgress(
+          processed: 0,
+          total: 0,
+          percentage: 100,
+          statusMessage: 'No encontramos música. ¿Está oculta?',
+        );
+        return;
+      }
+
+      yield ScanProgress(
+        processed: 0,
+        total: total,
+        percentage: 0,
+        statusMessage: '¡Encontramos $total canciones!',
+      );
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      final int batchSize = total > 1000 ? 50 : 10;
+
+      for (int i = 0; i < total; i++) {
+        final processed = i + 1;
+
+        if (i % batchSize == 0 || i == total - 1) {
+          final percentage = (processed / total) * 100;
+          yield ScanProgress(
+            processed: processed,
+            total: total,
+            percentage: percentage,
+            currentItem: tracks[i].title,
+            statusMessage: _getEmotionalMessage(percentage),
+          );
+
+          await Future.delayed(const Duration(milliseconds: 1));
+        }
+      }
+
+      yield ScanProgress(
+        processed: total,
+        total: total,
+        percentage: 100,
+        statusMessage: '¡Listo! Tu música te espera.',
+      );
+    } catch (e) {
+      Logger.error('Error during scanDeviceTracks: $e');
+      yield ScanProgress(
+        processed: 0,
+        total: 0,
+        percentage: 0,
+        statusMessage: 'Vaya, algo salió mal al leer los archivos.',
+      );
     }
   }
 

@@ -6,11 +6,13 @@ import '../../domain/repositories/track_repository.dart';
 import '../../domain/repositories/audio_repository.dart';
 import '../../core/utils/logger.dart';
 import 'audio_player_provider.dart';
+import '../../domain/entities/scan_progress.dart';
 
 // Estado de la biblioteca
 class LibraryState {
   final List<Track> tracks;
   final bool isScanning;
+  final ScanProgress? scanProgress;
   final int lastAddedCount;
   final DateTime? lastScanTime;
   final String? error;
@@ -18,6 +20,7 @@ class LibraryState {
   LibraryState({
     this.tracks = const [],
     this.isScanning = false,
+    this.scanProgress,
     this.lastAddedCount = 0,
     this.lastScanTime,
     this.error,
@@ -26,6 +29,7 @@ class LibraryState {
   LibraryState copyWith({
     List<Track>? tracks,
     bool? isScanning,
+    ScanProgress? scanProgress,
     int? lastAddedCount,
     DateTime? lastScanTime,
     String? error,
@@ -33,6 +37,7 @@ class LibraryState {
     return LibraryState(
       tracks: tracks ?? this.tracks,
       isScanning: isScanning ?? this.isScanning,
+      scanProgress: scanProgress ?? this.scanProgress,
       lastAddedCount: lastAddedCount ?? this.lastAddedCount,
       lastScanTime: lastScanTime ?? this.lastScanTime,
       error: error, // Se resetea si no se pasa
@@ -98,11 +103,28 @@ class LibraryViewModel extends StateNotifier<LibraryState> {
       return;
     }
 
-    state = state.copyWith(isScanning: true, error: null);
+    state = state.copyWith(
+      isScanning: true,
+      error: null,
+      scanProgress: ScanProgress.initial(),
+    );
     Logger.info('Starting library scan (initial: $initial)...');
 
     try {
       final currentIds = state.tracks.map((t) => t.id).toSet();
+
+      // Subscribe to progress stream with a global timeout
+      await for (final progress in _audioRepository.scanDeviceTracks().timeout(
+        const Duration(seconds: 45),
+        onTimeout: (sink) {
+          Logger.error('Library scan timed out after 45 seconds');
+          sink.close();
+        },
+      )) {
+        state = state.copyWith(scanProgress: progress);
+      }
+
+      // Now get the final list (this is fast as it's already scanned in the repository)
       final newTracks = await _scanTracks();
 
       Logger.info('Scan results received: ${newTracks.length} tracks');

@@ -8,7 +8,8 @@ class LocalAudioSource {
   /// Obtiene los archivos de audio del almacenamiento local
   Future<List<Track>> getAudioFiles() async {
     try {
-      Logger.info('Requesting local songs from system...');
+      final queryId = DateTime.now().millisecondsSinceEpoch % 10000;
+      Logger.info('[$queryId] Requesting local songs from system...');
       // Filtrar para obtener solo música
       // We add a timeout because on_audio_query can sometimes hang on certain devices
       List<SongModel> songs = await _audioQuery
@@ -19,14 +20,14 @@ class LocalAudioSource {
             ignoreCase: true,
           )
           .timeout(
-            const Duration(seconds: 15),
+            const Duration(seconds: 10),
             onTimeout: () {
-              Logger.error('Audio query timed out after 15 seconds');
+              Logger.error('[$queryId] Audio query timed out after 10 seconds');
               return [];
             },
           );
 
-      Logger.info('Found ${songs.length} songs');
+      Logger.info('[$queryId] Found ${songs.length} songs');
 
       return songs.map((song) {
         return Track(
