@@ -8,13 +8,23 @@ class LocalAudioSource {
   /// Obtiene los archivos de audio del almacenamiento local
   Future<List<Track>> getAudioFiles() async {
     try {
+      Logger.info('Requesting local songs from system...');
       // Filtrar para obtener solo música
-      List<SongModel> songs = await _audioQuery.querySongs(
-        sortType: SongSortType.TITLE,
-        orderType: OrderType.ASC_OR_SMALLER,
-        uriType: UriType.EXTERNAL,
-        ignoreCase: true,
-      );
+      // We add a timeout because on_audio_query can sometimes hang on certain devices
+      List<SongModel> songs = await _audioQuery
+          .querySongs(
+            sortType: SongSortType.TITLE,
+            orderType: OrderType.ASC_OR_SMALLER,
+            uriType: UriType.EXTERNAL,
+            ignoreCase: true,
+          )
+          .timeout(
+            const Duration(seconds: 15),
+            onTimeout: () {
+              Logger.error('Audio query timed out after 15 seconds');
+              return [];
+            },
+          );
 
       Logger.info('Found ${songs.length} songs');
 

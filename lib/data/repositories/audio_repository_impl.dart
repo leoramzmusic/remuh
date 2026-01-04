@@ -5,6 +5,7 @@ import '../../domain/entities/track.dart';
 import '../../domain/repositories/audio_repository.dart';
 import '../../services/audio_service.dart';
 import '../../services/permission_service.dart';
+import '../../core/utils/logger.dart';
 import '../datasources/local_audio_source.dart';
 
 /// Implementación del repositorio de audio
@@ -26,13 +27,21 @@ class AudioRepositoryImpl implements AudioRepository {
 
   @override
   Future<List<Track>> getDeviceTracks() async {
+    Logger.info('AudioRepository: Requesting storage permission...');
     final hasPermission = await _permissionService.requestStoragePermission();
-    // También solicitamos notificaciones para Android 13+
+
+    Logger.info(
+      'AudioRepository: Storage permissiongranted: $hasPermission. Requesting notification permission...',
+    );
     await _permissionService.requestNotificationPermission();
 
     if (hasPermission) {
+      Logger.info('AudioRepository: Fetching files from LocalAudioSource...');
       return await _localAudioSource.getAudioFiles();
     } else {
+      Logger.warning(
+        'AudioRepository: No storage permission, returning empty list',
+      );
       return [];
     }
   }

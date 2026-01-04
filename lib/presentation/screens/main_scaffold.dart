@@ -9,7 +9,6 @@ import '../widgets/app_drawer.dart';
 import '../widgets/mini_player.dart';
 import '../providers/navigation_provider.dart';
 import '../widgets/dynamic_blur_background.dart';
-import '../widgets/notification_test_button.dart';
 
 /// Main scaffold with bottom navigation
 class MainScaffold extends ConsumerWidget {
@@ -67,14 +66,10 @@ class MainScaffold extends ConsumerWidget {
             ),
           ],
         ),
-        floatingActionButton: Column(
+        floatingActionButton: const Column(
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            const NotificationTestButton(),
-            const SizedBox(height: 16),
-            const MiniPlayer(),
-          ],
+          children: [SizedBox(height: 16), MiniPlayer()],
         ),
         floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       ),

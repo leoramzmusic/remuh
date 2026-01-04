@@ -46,30 +46,30 @@ class PermissionService {
 
   Future<bool> requestStoragePermission() async {
     if (Platform.isAndroid) {
+      Logger.info('Requesting storage/audio permission...');
       final deviceInfo = DeviceInfoPlugin();
+      Logger.info('Getting android info...');
       final androidInfo = await deviceInfo.androidInfo;
+      Logger.info('Android SDK version: ${androidInfo.version.sdkInt}');
 
       PermissionStatus status;
 
       if (androidInfo.version.sdkInt >= 33) {
         // Android 13+
+        Logger.info('Requesting Permission.audio...');
         status = await Permission.audio.request();
       } else {
         // Android < 13
+        Logger.info('Requesting Permission.storage...');
         status = await Permission.storage.request();
       }
 
       final granted = status.isStatusGranted;
+      Logger.info('Permission request result: $status (granted: $granted)');
 
       // Persist permission state
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(_keyPermissionGranted, granted);
-
-      if (granted) {
-        Logger.info('Storage/Audio permission granted');
-      } else {
-        Logger.warning('Storage/Audio permission denied: $status');
-      }
 
       return granted;
     }

@@ -93,12 +93,19 @@ class LibraryViewModel extends StateNotifier<LibraryState> {
   }
 
   Future<void> scanLibrary({bool initial = false}) async {
-    if (state.isScanning) return;
+    if (state.isScanning) {
+      Logger.info('Scan already in progress, skipping request');
+      return;
+    }
 
     state = state.copyWith(isScanning: true, error: null);
+    Logger.info('Starting library scan (initial: $initial)...');
+
     try {
       final currentIds = state.tracks.map((t) => t.id).toSet();
       final newTracks = await _scanTracks();
+
+      Logger.info('Scan results received: ${newTracks.length} tracks');
 
       // Calcular cuántas son realmente nuevas
       int added = 0;
@@ -109,6 +116,7 @@ class LibraryViewModel extends StateNotifier<LibraryState> {
       await _saveLastScanTime();
 
       // Merge with stats and overrides
+      Logger.info('Merging metadata from DB...');
       final statsMap = await _trackRepository.getAllTrackStats();
       final overridesMap = await _trackRepository.getAllTrackOverrides();
 
@@ -145,10 +153,21 @@ class LibraryViewModel extends StateNotifier<LibraryState> {
         lastScanTime: DateTime.now(),
       );
 
+      Logger.info(
+        'Library updated successfully: ${tracksWithMetadata.length} tracks total',
+      );
+
       // Restaurar última sesión si el reproductor está vacío
       _audioPlayer.restorePlayback(tracksWithMetadata);
-    } catch (e) {
+    } catch (e, stack) {
+      Logger.error('Fatal error during library scan', e);
+      Logger.error('Stack trace: $stack');
       state = state.copyWith(isScanning: false, error: e.toString());
+    } finally {
+      // Safety check to ensure isScanning is never stuck
+      if (state.isScanning) {
+        state = state.copyWith(isScanning: false);
+      }
     }
   }
 
