@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:typed_data';
+import 'dart:io';
 import 'package:on_audio_query/on_audio_query.dart';
 import '../providers/customization_provider.dart';
 import '../../core/theme/icon_sets.dart';
@@ -8,10 +9,11 @@ import '../../core/utils/logger.dart';
 
 class TrackArtwork extends ConsumerWidget {
   final String trackId;
+  final String? artworkPath;
   final double size;
   final double borderRadius;
   final IconData? placeholderIcon;
-  final String? heroTag;
+  final Object? heroTag;
   final FilterQuality filterQuality;
 
   // Simple in-memory cache to speed up loading and prevent flickering on frequent reloads
@@ -19,12 +21,15 @@ class TrackArtwork extends ConsumerWidget {
   static final Map<String, Uint8List> _artworkCache = {};
   static final Map<String, Future<Uint8List?>> _pendingQueries = {};
   static final _audioQuery = OnAudioQuery();
+  static final Set<String> _failedArtworkIds =
+      {}; // Track IDs that failed to load
   static const int _maxCacheSize = 150;
   static final List<String> _cacheKeys = [];
 
   const TrackArtwork({
     super.key,
     required this.trackId,
+    this.artworkPath, // Added to constructor
     this.size = 50,
     this.borderRadius = 8,
     this.placeholderIcon,
@@ -38,6 +43,60 @@ class TrackArtwork extends ConsumerWidget {
     final icons = AppIconSet.fromStyle(customization.iconStyle);
     final actualPlaceholder = placeholderIcon ?? icons.lyrics;
 
+    // 1. Check for Custom Artwork Path first
+    if (artworkPath != null && artworkPath!.isNotEmpty) {
+      Widget imageWidget;
+      if (artworkPath!.startsWith('http')) {
+        imageWidget = Image.network(
+          artworkPath!,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          filterQuality: filterQuality,
+          errorBuilder: (context, error, stackTrace) =>
+              _buildPlaceholder(context, size, borderRadius, actualPlaceholder),
+        );
+      } else {
+        try {
+          // Assume local file path
+          imageWidget = Image.file(
+            File(artworkPath!),
+            width: size,
+            height: size,
+            fit: BoxFit.cover,
+            filterQuality: filterQuality,
+            errorBuilder: (context, url, error) => _buildPlaceholder(
+              context,
+              size,
+              borderRadius,
+              actualPlaceholder,
+            ),
+          );
+        } catch (e) {
+          imageWidget = _buildPlaceholder(
+            context,
+            size,
+            borderRadius,
+            actualPlaceholder,
+          );
+        }
+      }
+
+      final content = AspectRatio(
+        aspectRatio: 1,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(borderRadius),
+          child: imageWidget,
+        ),
+      );
+
+      if (heroTag != null) {
+        return Hero(tag: heroTag!, child: content);
+      }
+      return content;
+    }
+
+    // 2. Fallback to AudioQuery (Existing Logic)
     Widget artwork = SizedBox(
       width: size,
       height: size,
@@ -68,21 +127,11 @@ class TrackArtwork extends ConsumerWidget {
               ),
             );
           } else {
-            content = Container(
-              key: const ValueKey('placeholder'),
-              width: size,
-              height: size,
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(borderRadius),
-              ),
-              child: Icon(
-                actualPlaceholder,
-                size: size * 0.5,
-                color: Theme.of(
-                  context,
-                ).colorScheme.onSurface.withValues(alpha: 0.3),
-              ),
+            content = _buildPlaceholder(
+              context,
+              size,
+              borderRadius,
+              actualPlaceholder,
             );
           }
 
@@ -106,10 +155,37 @@ class TrackArtwork extends ConsumerWidget {
     return artwork;
   }
 
+  Widget _buildPlaceholder(
+    BuildContext context,
+    double size,
+    double borderRadius,
+    IconData icon,
+  ) {
+    return Container(
+      key: const ValueKey('placeholder'),
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(borderRadius),
+      ),
+      child: Icon(
+        icon,
+        size: size * 0.5,
+        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
+      ),
+    );
+  }
+
   Future<Uint8List?> _getArtworkBytes(String trackId) async {
     // Check cache first
     if (_artworkCache.containsKey(trackId)) {
       return _artworkCache[trackId];
+    }
+
+    // Check if known failure
+    if (_failedArtworkIds.contains(trackId)) {
+      return null;
     }
 
     // Check if there is an active query for this track to avoid duplicates
@@ -145,6 +221,8 @@ class TrackArtwork extends ConsumerWidget {
         }
         _artworkCache[trackId] = bytes;
         _cacheKeys.add(trackId);
+      } else {
+        _failedArtworkIds.add(trackId);
       }
       return bytes;
     } finally {

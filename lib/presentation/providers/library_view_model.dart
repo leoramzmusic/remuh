@@ -162,6 +162,7 @@ class LibraryViewModel extends StateNotifier<LibraryState> {
             title: overrides['title'] as String?,
             artist: overrides['artist'] as String?,
             album: overrides['album'] as String?,
+            artworkPath: overrides['artworkPath'] as String?,
           );
         }
 
@@ -190,6 +191,36 @@ class LibraryViewModel extends StateNotifier<LibraryState> {
       if (state.isScanning) {
         state = state.copyWith(isScanning: false);
       }
+    }
+  }
+
+  /// Actualizar la portada de una pista
+  Future<void> updateTrackCover(String trackId, String? newPath) async {
+    try {
+      // Recuperar metadatos actuales para no perder titulo/artista si ya existen
+      final overrides = await _trackRepository.getAllTrackOverrides();
+      final currentOverrides = overrides[trackId] ?? {};
+
+      final newMetadata = Map<String, dynamic>.from(currentOverrides);
+      newMetadata['artworkPath'] = newPath;
+
+      await _trackRepository.updateTrackMetadata(trackId, newMetadata);
+
+      // Actualizar estado local
+      state = state.copyWith(
+        tracks: state.tracks.map((t) {
+          if (t.id == trackId) {
+            return t.copyWith(artworkPath: newPath);
+          }
+          return t;
+        }).toList(),
+      );
+
+      // Sincronizar con el reproductor
+      _audioPlayer.refreshTrackMetadata(trackId, newMetadata);
+      Logger.info('Cover updated for track $trackId: $newPath');
+    } catch (e) {
+      Logger.error('Error updating track cover', e);
     }
   }
 

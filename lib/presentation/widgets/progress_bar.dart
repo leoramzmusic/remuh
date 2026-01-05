@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/audio_player_provider.dart';
 import '../providers/dynamic_color_provider.dart';
-import 'dart:ui';
+//import 'dart:ui';
 
 /// Barra de progreso del reproductor
 class ProgressBar extends ConsumerStatefulWidget {

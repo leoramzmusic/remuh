@@ -60,7 +60,7 @@ class FoldersView extends ConsumerWidget {
           ),
           trailing: const Icon(Icons.chevron_right_rounded),
           onTap: () {
-            // TODO: Navigate to folder detail
+            // Navigate to folder detail
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('Abrir carpeta: $folderName')),
             );

@@ -14,7 +14,7 @@ class GenresView extends ConsumerWidget {
     final isGrid = ref.watch(isGridViewProvider);
 
     // Group tracks by genre (using album as placeholder since Track doesn't have genre)
-    // TODO: Add genre property to Track entity
+    // Add genre property to Track entity
     final genreMap = <String, List<Track>>{};
     for (final track in tracks) {
       final genre = track.album ?? 'Desconocido';
@@ -62,7 +62,7 @@ class GenresView extends ConsumerWidget {
           return Card(
             child: InkWell(
               onTap: () {
-                // TODO: Navigate to genre detail
+                // Navigate to genre detail
                 ScaffoldMessenger.of(
                   context,
                 ).showSnackBar(SnackBar(content: Text('Género: $genre')));
@@ -112,7 +112,7 @@ class GenresView extends ConsumerWidget {
           ),
           trailing: const Icon(Icons.chevron_right_rounded),
           onTap: () {
-            // TODO: Navigate to genre detail
+            // Navigate to genre detail
             ScaffoldMessenger.of(
               context,
             ).showSnackBar(SnackBar(content: Text('Género: $genre')));

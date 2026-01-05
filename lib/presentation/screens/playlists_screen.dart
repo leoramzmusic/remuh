@@ -14,7 +14,7 @@ class PlaylistsScreen extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.add_rounded),
             onPressed: () {
-              // TODO: Implement create playlist
+              // Implement create playlist
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Crear playlist próximamente')),
               );

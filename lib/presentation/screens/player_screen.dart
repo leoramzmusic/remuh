@@ -25,6 +25,7 @@ import '../../domain/repositories/audio_repository.dart';
 import '../widgets/shuffle_indicator.dart';
 import '../widgets/player_gesture_wrapper.dart';
 import '../../core/utils/logger.dart';
+import '../widgets/cover_options_menu.dart';
 
 /// Pantalla principal del reproductor - Rediseñada
 class PlayerScreen extends ConsumerStatefulWidget {
@@ -1086,6 +1087,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
         if (!shouldRender) return const SizedBox.shrink();
 
+        final track = queue[index]; // Get track reference
+
         return AnimatedBuilder(
           animation: Listenable.merge([_pageController, routeAnimation]),
           builder: (context, child) {
@@ -1127,11 +1130,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
               return Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                child: TrackArtwork(
-                  trackId: queue[index].id,
-                  size: artSize,
-                  borderRadius: 20,
-                  heroTag: index == currentIndex ? heroTag : null,
+                child: GestureDetector(
+                  onLongPress: () {
+                    showModalBottomSheet(
+                      context: context,
+                      backgroundColor: Colors.transparent,
+                      builder: (context) => CoverOptionsMenu(track: track),
+                    );
+                  },
+                  child: TrackArtwork(
+                    trackId: track.id,
+                    artworkPath: track.artworkPath, // Pass custom path
+                    size: artSize,
+                    borderRadius: 20,
+                    heroTag: index == currentIndex ? heroTag : null,
+                  ),
                 ),
               );
             },
@@ -1285,7 +1298,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 class _SeekIndicator extends ConsumerWidget {
   final bool isForward;
 
-  const _SeekIndicator({super.key, required this.isForward});
+  const _SeekIndicator({required this.isForward});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

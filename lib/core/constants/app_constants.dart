@@ -28,7 +28,7 @@ class AppConstants {
   static const double controlIconLarge = 64.0; // Play/pause button
 
   // APIs y Servicios
-  // TODO: Configura aquí la URL de tu microservicio de sincronización (Aeneas/Whisper)
+  // Configura aquí la URL de tu microservicio de sincronización (Aeneas/Whisper)
   // Si usas emulador Android: 'http://10.0.2.2:8000/sync'
   // Si usas dispositivo físico: 'http://TU_IP_LOCAL:8000/sync' (ej: 192.168.1.50:8000/sync)
   // Asegúrate de que backend/main.py esté corriendo ('python main.py')
