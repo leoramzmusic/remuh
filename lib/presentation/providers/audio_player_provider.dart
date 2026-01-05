@@ -20,6 +20,7 @@ import '../../data/datasources/local_audio_source.dart';
 import '../../domain/repositories/track_repository.dart';
 import '../../data/repositories/track_repository_impl.dart';
 import '../../services/database_service.dart';
+import 'library_view_model.dart';
 
 // Provider del servicio de audio
 // Provider del Handler (inicializado en main.dart)
@@ -896,6 +897,10 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
           title: metadata['title'] as String?,
           artist: metadata['artist'] as String?,
           album: metadata['album'] as String?,
+          artworkPath: metadata['artworkPath'] as String?,
+          clearArtworkPath:
+              metadata.containsKey('artworkPath') &&
+              metadata['artworkPath'] == null,
         );
       }
       return t;
@@ -932,35 +937,30 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
     }
   }
 
+  /// Sync favorite status from external source (e.g. LibraryViewModel)
+  void syncFavoriteStatus(String trackId, bool isFavorite) {
+    // Update current track if it's the one being toggled
+    if (state.currentTrack?.id == trackId) {
+      state = state.copyWith(
+        currentTrack: state.currentTrack?.copyWith(isFavorite: isFavorite),
+      );
+    }
+
+    // Update in queue
+    final newQueue = state.queue.map((t) {
+      if (t.id == trackId) {
+        return t.copyWith(isFavorite: isFavorite);
+      }
+      return t;
+    }).toList();
+
+    state = state.copyWith(queue: newQueue);
+  }
+
   /// Toggle favorite status of a track
   Future<void> toggleFavorite(Track track) async {
-    final bool newFavoriteStatus = !track.isFavorite;
-    try {
-      await _trackRepository.toggleFavorite(track.id, newFavoriteStatus);
-
-      // Update local state if the track being toggled is the current one
-      if (state.currentTrack?.id == track.id) {
-        state = state.copyWith(
-          currentTrack: state.currentTrack?.copyWith(
-            isFavorite: newFavoriteStatus,
-          ),
-        );
-      }
-
-      // We should also update it in the queue if it's there
-      final newQueue = state.queue.map((t) {
-        if (t.id == track.id) {
-          return t.copyWith(isFavorite: newFavoriteStatus);
-        }
-        return t;
-      }).toList();
-
-      state = state.copyWith(queue: newQueue);
-
-      // Note: Ideally LibraryViewModel should also be notified or refreshed.
-    } catch (e) {
-      Logger.error('Error toggling favorite', e);
-    }
+    // Delegate to LibraryViewModel for centralized state management
+    await _ref.read(libraryViewModelProvider.notifier).toggleFavorite(track.id);
   }
 }
 

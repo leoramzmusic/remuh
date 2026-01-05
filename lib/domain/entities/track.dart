@@ -44,6 +44,7 @@ class Track {
     DateTime? lastPlayedAt,
     int? year,
     DateTime? dateAdded,
+    bool clearArtworkPath = false,
   }) {
     return Track(
       id: id ?? this.id,
@@ -51,7 +52,7 @@ class Track {
       artist: artist ?? this.artist,
       album: album ?? this.album,
       duration: duration ?? this.duration,
-      artworkPath: artworkPath ?? this.artworkPath,
+      artworkPath: clearArtworkPath ? null : (artworkPath ?? this.artworkPath),
       filePath: filePath ?? this.filePath,
       fileUrl: fileUrl ?? this.fileUrl,
       isFavorite: isFavorite ?? this.isFavorite,

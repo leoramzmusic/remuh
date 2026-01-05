@@ -23,7 +23,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 3,
+      version: 4,
       onCreate: (db, version) async {
         Logger.info('Creating database tables...');
 
@@ -66,7 +66,8 @@ class DatabaseService {
             album TEXT,
             genre TEXT,
             trackNumber INTEGER,
-            discNumber INTEGER
+            discNumber INTEGER,
+            artworkPath TEXT
           )
         ''');
       },
@@ -93,6 +94,16 @@ class DatabaseService {
               discNumber INTEGER
             )
           ''');
+        }
+        if (oldVersion < 4) {
+          try {
+            await db.execute(
+              'ALTER TABLE track_overrides ADD COLUMN artworkPath TEXT',
+            );
+          } catch (e) {
+            // Ignore if column already exists
+            Logger.warning('Error adding artworkPath column: $e');
+          }
         }
       },
     );

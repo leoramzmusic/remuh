@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../domain/entities/track.dart';
 import '../providers/library_view_model.dart';
+import '../providers/audio_player_provider.dart';
 import '../../core/utils/logger.dart';
 
 class CoverOptionsMenu extends ConsumerWidget {
@@ -32,6 +33,32 @@ class CoverOptionsMenu extends ConsumerWidget {
           ),
           _buildOption(
             context,
+            icon: track.isFavorite ? Icons.favorite : Icons.favorite_border,
+            title: track.isFavorite
+                ? 'Quitar de favoritos'
+                : 'Marcar como favorito',
+            onTap: () async {
+              final wasFavorite = track.isFavorite;
+              await ref
+                  .read(audioPlayerProvider.notifier)
+                  .toggleFavorite(track);
+              if (context.mounted) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      wasFavorite
+                          ? 'Eliminado de favoritos'
+                          : 'Agregado a favoritos',
+                    ),
+                    duration: const Duration(seconds: 1),
+                  ),
+                );
+              }
+            },
+          ),
+          _buildOption(
+            context,
             icon: Icons.image,
             title: 'Seleccionar de la galería',
             onTap: () => _pickFromGallery(context, ref),
@@ -41,7 +68,7 @@ class CoverOptionsMenu extends ConsumerWidget {
             _buildOption(
               context,
               icon: Icons.restore,
-              title: 'Restaurar portada original',
+              title: 'Restaurar portada anterior',
               onTap: () => _restoreOriginal(context, ref),
               isDestructive: true,
             ),
@@ -131,15 +158,14 @@ class CoverOptionsMenu extends ConsumerWidget {
   }
 
   Future<void> _pickFromGallery(BuildContext context, WidgetRef ref) async {
+    final libraryViewModel = ref.read(libraryViewModelProvider.notifier);
     Navigator.pop(context); // Close sheet
     try {
       final picker = ImagePicker();
       final XFile? image = await picker.pickImage(source: ImageSource.gallery);
 
       if (image != null) {
-        await ref
-            .read(libraryViewModelProvider.notifier)
-            .updateTrackCover(track.id, image.path);
+        await libraryViewModel.updateTrackCover(track.id, image.path);
 
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -161,11 +187,10 @@ class CoverOptionsMenu extends ConsumerWidget {
   }
 
   Future<void> _restoreOriginal(BuildContext context, WidgetRef ref) async {
+    final libraryViewModel = ref.read(libraryViewModelProvider.notifier);
     Navigator.pop(context);
     try {
-      await ref
-          .read(libraryViewModelProvider.notifier)
-          .updateTrackCover(track.id, null);
+      await libraryViewModel.updateTrackCover(track.id, null);
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

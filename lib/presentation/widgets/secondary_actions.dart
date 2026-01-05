@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/audio_player_provider.dart';
 import '../providers/favorites_provider.dart';
+import '../providers/library_view_model.dart';
 import '../screens/queue/queue_screen.dart';
 import 'equalizer_sheet.dart';
 import 'package:share_plus/share_plus.dart';
@@ -50,7 +51,9 @@ class SecondaryActions extends ConsumerWidget {
             color: isFavorite ? Colors.red : null,
             onTap: () {
               if (currentTrack != null) {
-                ref.read(favoritesProvider.notifier).toggle(currentTrack.id);
+                ref
+                    .read(libraryViewModelProvider.notifier)
+                    .toggleFavorite(currentTrack.id);
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(

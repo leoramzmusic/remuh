@@ -21,8 +21,14 @@ class PlaylistsNotifier extends StateNotifier<AsyncValue<List<Playlist>>> {
   }
 
   Future<void> loadPlaylists() async {
-    state = const AsyncValue.loading();
-    state = await AsyncValue.guard(() => _repository.getAllPlaylists());
+    state = await AsyncValue.guard(() async {
+      final playlists = await _repository.getAllPlaylists();
+      if (!playlists.any((p) => p.name == 'Favoritos')) {
+        await _repository.createPlaylist(Playlist(name: 'Favoritos'));
+        return await _repository.getAllPlaylists();
+      }
+      return playlists;
+    });
   }
 
   Future<void> createPlaylist(String name) async {
@@ -63,6 +69,30 @@ class PlaylistsNotifier extends StateNotifier<AsyncValue<List<Playlist>>> {
       await removeTrackFromPlaylist(favorites.id!, trackId);
     } else {
       await addTrackToPlaylist(favorites.id!, trackId);
+    }
+  }
+
+  /// Sync favorite status from LibraryViewModel
+  Future<void> syncFavoriteStatus(String trackId, bool isFavorite) async {
+    final playlists = state.value ?? [];
+    Playlist? favorites = playlists
+        .where((p) => p.name == 'Favoritos')
+        .firstOrNull;
+
+    if (favorites == null && isFavorite) {
+      await _repository.createPlaylist(Playlist(name: 'Favoritos'));
+      final all = await _repository.getAllPlaylists();
+      state = AsyncValue.data(all);
+      favorites = all.firstWhere((p) => p.name == 'Favoritos');
+    }
+
+    if (favorites != null) {
+      final contains = favorites.trackIds.contains(trackId);
+      if (isFavorite && !contains) {
+        await addTrackToPlaylist(favorites.id!, trackId);
+      } else if (!isFavorite && contains) {
+        await removeTrackFromPlaylist(favorites.id!, trackId);
+      }
     }
   }
 

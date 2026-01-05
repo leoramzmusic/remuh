@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/favorites_provider.dart';
+import '../providers/library_view_model.dart';
 import '../providers/audio_player_provider.dart';
 import '../widgets/track_artwork.dart';
 
@@ -50,7 +51,8 @@ class FavoritesScreen extends ConsumerWidget {
                       ),
                       TextButton(
                         onPressed: () {
-                          ref.read(favoritesProvider.notifier).clearAll();
+                          // TODO: Implement bulk clear in LibraryViewModel if needed
+                          // For now, individual toggling is sufficient or we can add clearAllFavorites to LibraryViewModel
                           Navigator.pop(context);
                         },
                         child: const Text('Eliminar'),
@@ -95,10 +97,6 @@ class FavoritesScreen extends ConsumerWidget {
               itemCount: favoriteTracks.length,
               itemBuilder: (context, index) {
                 final track = favoriteTracks[index];
-                final isFavorite = ref
-                    .watch(favoritesProvider)
-                    .contains(track.id);
-
                 return ListTile(
                   leading: TrackArtwork(
                     trackId: track.id,
@@ -109,11 +107,13 @@ class FavoritesScreen extends ConsumerWidget {
                   subtitle: Text(track.artist ?? 'Desconocido'),
                   trailing: IconButton(
                     icon: Icon(
-                      isFavorite ? Icons.favorite : Icons.favorite_border,
-                      color: isFavorite ? Colors.red : null,
+                      track.isFavorite ? Icons.favorite : Icons.favorite_border,
+                      color: track.isFavorite ? Colors.red : null,
                     ),
                     onPressed: () {
-                      ref.read(favoritesProvider.notifier).toggle(track.id);
+                      ref
+                          .read(libraryViewModelProvider.notifier)
+                          .toggleFavorite(track.id);
                     },
                   ),
                   onTap: () {

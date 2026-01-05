@@ -26,6 +26,7 @@ import '../widgets/shuffle_indicator.dart';
 import '../widgets/player_gesture_wrapper.dart';
 import '../../core/utils/logger.dart';
 import '../widgets/cover_options_menu.dart';
+import '../widgets/add_to_playlist_sheet.dart';
 
 /// Pantalla principal del reproductor - Rediseñada
 class PlayerScreen extends ConsumerStatefulWidget {
@@ -597,34 +598,75 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300),
-            child: Hero(
-              tag: 'title_${track?.id ?? 'none'}',
-              child: MarqueeText(
-                key: ValueKey('title_${track?.id ?? 'none'}'),
-                text: track?.title ?? 'No Track Playing',
-                style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-                height: 32,
+          Row(
+            children: [
+              // Placeholder for symmetry
+              const opacityIconBox(
+                child: Icon(Icons.favorite_border, size: 28),
               ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300),
-            transitionBuilder: (Widget child, Animation<double> animation) {
-              return FadeTransition(opacity: animation, child: child);
-            },
-            child: MarqueeText(
-              key: ValueKey('artist_${track?.id ?? 'none'}'),
-              text: track?.artist ?? 'Unknown Artist',
-              style: const TextStyle(fontSize: 18, color: Colors.white60),
-              height: 24,
-            ),
+              Expanded(
+                child: Column(
+                  children: [
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      child: Hero(
+                        tag: 'title_${track?.id ?? 'none'}',
+                        child: MarqueeText(
+                          key: ValueKey('title_${track?.id ?? 'none'}'),
+                          text: track?.title ?? 'No Track Playing',
+                          style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                          height: 32,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      transitionBuilder:
+                          (Widget child, Animation<double> animation) {
+                            return FadeTransition(
+                              opacity: animation,
+                              child: child,
+                            );
+                          },
+                      child: MarqueeText(
+                        key: ValueKey('artist_${track?.id ?? 'none'}'),
+                        text: track?.artist ?? 'Unknown Artist',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          color: Colors.white60,
+                        ),
+                        height: 24,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (track != null)
+                IconButton(
+                  icon: Icon(
+                    track.isFavorite ? Icons.favorite : Icons.favorite_border,
+                    color: track.isFavorite ? Colors.redAccent : Colors.white60,
+                    size: 28,
+                  ),
+                  onPressed: () {
+                    showModalBottomSheet(
+                      context: context,
+                      isScrollControlled: true,
+                      backgroundColor: Colors.transparent,
+                      builder: (context) => AddToPlaylistSheet(track: track),
+                    );
+                  },
+                )
+              else
+                const opacityIconBox(
+                  child: Icon(Icons.favorite_border, size: 28),
+                ),
+            ],
           ),
         ],
       ),
@@ -1130,21 +1172,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
               return Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                child: GestureDetector(
-                  onLongPress: () {
-                    showModalBottomSheet(
-                      context: context,
-                      backgroundColor: Colors.transparent,
-                      builder: (context) => CoverOptionsMenu(track: track),
-                    );
-                  },
-                  child: TrackArtwork(
-                    trackId: track.id,
-                    artworkPath: track.artworkPath, // Pass custom path
-                    size: artSize,
-                    borderRadius: 20,
-                    heroTag: index == currentIndex ? heroTag : null,
-                  ),
+                child: _InteractableArtwork(
+                  track: track,
+                  size: artSize,
+                  heroTag: index == currentIndex ? heroTag : null,
                 ),
               );
             },
@@ -1481,5 +1512,151 @@ class _AnimatedIconButtonState extends State<_AnimatedIconButton>
     }
 
     return content;
+  }
+}
+
+class _InteractableArtwork extends ConsumerStatefulWidget {
+  final Track track;
+  final double size;
+  final String? heroTag;
+
+  const _InteractableArtwork({
+    required this.track,
+    required this.size,
+    this.heroTag,
+  });
+
+  @override
+  ConsumerState<_InteractableArtwork> createState() =>
+      _InteractableArtworkState();
+}
+
+class _InteractableArtworkState extends ConsumerState<_InteractableArtwork>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+  bool _showHeart = false;
+  bool _isBrokenHeart = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 1200),
+      vsync: this,
+    );
+
+    _scaleAnimation = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween<double>(
+          begin: 0.0,
+          end: 1.2,
+        ).chain(CurveTween(curve: Curves.elasticOut)),
+        weight: 20,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(
+          begin: 1.2,
+          end: 1.0,
+        ).chain(CurveTween(curve: Curves.linear)),
+        weight: 10,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(
+          begin: 1.0,
+          end: 0.0,
+        ).chain(CurveTween(curve: Curves.easeIn)),
+        weight: 70,
+      ),
+    ]).animate(_controller);
+
+    _controller.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        if (mounted) {
+          setState(() {
+            _showHeart = false;
+          });
+        }
+        _controller.reset();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _handleDoubleTap() {
+    final isCurrentlyFavorite = widget.track.isFavorite;
+    final willBeBroken = isCurrentlyFavorite;
+
+    ref.read(audioPlayerProvider.notifier).toggleFavorite(widget.track);
+
+    if (mounted) {
+      setState(() {
+        _showHeart = true;
+        _isBrokenHeart = willBeBroken;
+      });
+      _controller.forward(from: 0.0);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onDoubleTap: _handleDoubleTap,
+      onLongPress: () {
+        showModalBottomSheet(
+          context: context,
+          backgroundColor: Colors.transparent,
+          builder: (context) => CoverOptionsMenu(track: widget.track),
+        );
+      },
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          TrackArtwork(
+            trackId: widget.track.id,
+            artworkPath: widget.track.artworkPath,
+            size: widget.size,
+            borderRadius: 20,
+            heroTag: widget.heroTag,
+          ),
+          if (_showHeart)
+            AnimatedBuilder(
+              animation: _scaleAnimation,
+              builder: (context, child) {
+                return Transform.scale(
+                  scale: _scaleAnimation.value,
+                  child: Icon(
+                    _isBrokenHeart ? Icons.heart_broken : Icons.favorite,
+                    color: _isBrokenHeart ? Colors.grey : Colors.redAccent,
+                    size: 80,
+                    shadows: const [
+                      Shadow(
+                        color: Colors.black26,
+                        blurRadius: 10,
+                        offset: Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class opacityIconBox extends StatelessWidget {
+  final Widget child;
+  const opacityIconBox({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Opacity(opacity: 0.0, child: child);
   }
 }

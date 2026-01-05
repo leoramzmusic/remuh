@@ -6,6 +6,7 @@ import '../../domain/repositories/track_repository.dart';
 import '../../domain/repositories/audio_repository.dart';
 import '../../core/utils/logger.dart';
 import 'audio_player_provider.dart';
+import 'playlists_provider.dart';
 import '../../domain/entities/scan_progress.dart';
 
 // Estado de la biblioteca
@@ -53,6 +54,7 @@ final libraryViewModelProvider =
       final audioRepository = ref.watch(audioRepositoryProvider);
       final audioPlayer = ref.watch(audioPlayerProvider.notifier);
       return LibraryViewModel(
+        ref,
         scanTracks,
         trackRepository,
         audioRepository,
@@ -61,6 +63,7 @@ final libraryViewModelProvider =
     });
 
 class LibraryViewModel extends StateNotifier<LibraryState> {
+  final Ref _ref;
   final ScanTracks _scanTracks;
   final TrackRepository _trackRepository;
   final AudioRepository _audioRepository;
@@ -68,6 +71,7 @@ class LibraryViewModel extends StateNotifier<LibraryState> {
   static const String _keyLastScanTime = 'library_last_scan_time';
 
   LibraryViewModel(
+    this._ref,
     this._scanTracks,
     this._trackRepository,
     this._audioRepository,
@@ -210,7 +214,10 @@ class LibraryViewModel extends StateNotifier<LibraryState> {
       state = state.copyWith(
         tracks: state.tracks.map((t) {
           if (t.id == trackId) {
-            return t.copyWith(artworkPath: newPath);
+            return t.copyWith(
+              artworkPath: newPath,
+              clearArtworkPath: newPath == null,
+            );
           }
           return t;
         }).toList(),
@@ -309,6 +316,43 @@ class LibraryViewModel extends StateNotifier<LibraryState> {
     } catch (e) {
       Logger.error('Error deleting track', e);
       return false;
+    }
+  }
+
+  /// Toggle favorite status of a track
+  Future<void> toggleFavorite(String trackId) async {
+    try {
+      final trackIndex = state.tracks.indexWhere((t) => t.id == trackId);
+      if (trackIndex == -1) return;
+
+      final track = state.tracks[trackIndex];
+      final newFavoriteStatus = !track.isFavorite;
+
+      // 1. Update Database
+      await _trackRepository.toggleFavorite(trackId, newFavoriteStatus);
+
+      // 2. Update Local State (Library)
+      state = state.copyWith(
+        tracks: [
+          for (final t in state.tracks)
+            if (t.id == trackId)
+              t.copyWith(isFavorite: newFavoriteStatus)
+            else
+              t,
+        ],
+      );
+
+      // 3. Sync with Audio Player
+      _audioPlayer.syncFavoriteStatus(trackId, newFavoriteStatus);
+
+      // 4. Sync with Playlists (Favoritos playlist)
+      _ref
+          .read(playlistsProvider.notifier)
+          .syncFavoriteStatus(trackId, newFavoriteStatus);
+
+      Logger.info('Favorite status toggled for $trackId: $newFavoriteStatus');
+    } catch (e) {
+      Logger.error('Error toggling favorite in LibraryViewModel', e);
     }
   }
 }

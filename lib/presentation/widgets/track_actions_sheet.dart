@@ -7,6 +7,7 @@ import '../providers/library_view_model.dart';
 import '../screens/entity_detail_screen.dart';
 import 'track_artwork.dart';
 import 'equalizer_sheet.dart';
+import 'add_to_playlist_sheet.dart';
 
 class TrackActionsSheet extends ConsumerWidget {
   final Track track;
@@ -89,14 +90,26 @@ class TrackActionsSheet extends ConsumerWidget {
                     label: 'Añadir a playlist',
                     onTap: () {
                       Navigator.pop(context);
-                      // Implement playlist selection
+                      showModalBottomSheet(
+                        context: context,
+                        isScrollControlled: true,
+                        backgroundColor: Colors.transparent,
+                        builder: (context) => AddToPlaylistSheet(track: track),
+                      );
                     },
                   ),
                   _ActionItem(
-                    icon: Icons.favorite_border,
-                    label: 'Marcar como favorito',
+                    icon: track.isFavorite
+                        ? Icons.favorite
+                        : Icons.favorite_border,
+                    label: track.isFavorite
+                        ? 'Quitar de favoritos'
+                        : 'Marcar como favorito',
                     onTap: () {
                       Navigator.pop(context);
+                      ref
+                          .read(libraryViewModelProvider.notifier)
+                          .toggleFavorite(track.id);
                     },
                   ),
                 ]),
