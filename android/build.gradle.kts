@@ -15,11 +15,11 @@ subprojects {
         if (project.hasProperty("android")) {
             val android = project.extensions.getByName("android") as com.android.build.gradle.BaseExtension
             
-            // Force SDK Version to 35 (Android 15 stable)
-            android.compileSdkVersion(35)
+            // Force SDK Version to 36 (Android 16 preview)
+            android.compileSdkVersion(36)
             
-            if (android.defaultConfig.targetSdkVersion != null && android.defaultConfig.targetSdkVersion!!.apiLevel < 35) {
-                android.defaultConfig.targetSdkVersion(35)
+            if (android.defaultConfig.targetSdkVersion != null && android.defaultConfig.targetSdkVersion!!.apiLevel < 36) {
+                android.defaultConfig.targetSdkVersion(36)
             }
 
             // Force browser 1.8.0 to avoid SDK 36 requirement
