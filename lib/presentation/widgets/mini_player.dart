@@ -158,13 +158,13 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
               onLongPressEnd: (_) {
                 ref.read(audioPlayerProvider.notifier).stopFastForward();
               },
-              child: IconButton(
-                icon: Icon(
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Icon(
                   Icons.skip_next_rounded,
                   size: 28,
                   color: _backgroundColors != null ? Colors.white : null,
                 ),
-                onPressed: null, // GestureDetector handles it
               ),
             ),
           ],

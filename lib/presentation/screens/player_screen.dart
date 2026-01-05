@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../presentation/widgets/equalizer_sheet.dart';
@@ -10,6 +11,7 @@ import '../../domain/entities/track.dart';
 import '../providers/dynamic_color_provider.dart';
 import '../providers/audio_player_provider.dart';
 import '../widgets/track_artwork.dart';
+import '../widgets/play_pause_button.dart';
 import '../widgets/progress_bar.dart';
 import 'queue/queue_screen.dart';
 import '../widgets/lyrics_view.dart';
@@ -500,7 +502,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   // Song Info
                   _buildSongInfo(displayedTrack),
 
-                  SizedBox(height: isSmallScreen ? 20 : 32),
+                  SizedBox(height: isSmallScreen ? 16 : 28),
 
                   // Playback Controls
                   _buildPlaybackControls(
@@ -513,7 +515,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     compact: isSmallScreen,
                   ),
 
-                  SizedBox(height: isSmallScreen ? 16 : 24),
+                  SizedBox(height: isSmallScreen ? 12 : 20),
 
                   // Progress Bar
                   const Padding(
@@ -613,44 +615,79 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final double playPauseSize = compact ? 72 : 80; // Play/Pause dominante
 
     final eqEnabled = ref.watch(equalizerProvider.select((s) => s.isEnabled));
-    final isTimerActive = ref.watch(sleepTimerProvider);
+    final sleepTimerState = ref.watch(sleepTimerProvider);
+    final isTimerActive = sleepTimerState.isActive;
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        // Columna izquierda: Repetir y Aleatorio
-        Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              tooltip: 'Repetir',
-              icon: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 300),
-                child: Icon(
-                  repeatMode == AudioRepeatMode.one
-                      ? Icons.repeat_one
-                      : Icons.repeat,
-                  key: ValueKey('repeat_$repeatMode'),
-                  size: sideIconSize,
-                  color: repeatMode != AudioRepeatMode.off
-                      ? Theme.of(context).colorScheme.primary
-                      : Colors.white.withValues(alpha: 0.4),
+        // Columna izquierda: Repetir y Aleatorio - Ancho fijo para centrar la fila del medio
+        SizedBox(
+          width: 64,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 48,
+                height: 48,
+                child: Center(
+                  child: _AnimatedIconButton(
+                    tooltip: 'Repetir',
+                    pressedScale: 0.8,
+                    rotateAngle: 2 * math.pi,
+                    icon: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      child: Icon(
+                        repeatMode == AudioRepeatMode.one
+                            ? Icons.repeat_one
+                            : Icons.repeat,
+                        key: ValueKey('repeat_$repeatMode'),
+                        size: sideIconSize,
+                        color: repeatMode != AudioRepeatMode.off
+                            ? Theme.of(context).colorScheme.primary
+                            : Colors.white.withValues(alpha: 0.4),
+                      ),
+                    ),
+                    onTap: () {
+                      ref.read(audioPlayerProvider.notifier).toggleRepeatMode();
+                      final newMode = ref.read(audioPlayerProvider).repeatMode;
+                      final message = switch (newMode) {
+                        AudioRepeatMode.all => 'Repetición de lista activada',
+                        AudioRepeatMode.one => 'Repetición de canción activada',
+                        AudioRepeatMode.off => 'Repetición desactivada',
+                      };
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(message),
+                          duration: const Duration(seconds: 1),
+                        ),
+                      );
+                    },
+                  ),
                 ),
               ),
-              onPressed: () =>
-                  ref.read(audioPlayerProvider.notifier).toggleRepeatMode(),
-            ),
-            IconButton(
-              tooltip: 'Aleatorio',
-              icon: ShuffleIndicator(
-                isActive: shuffleMode,
-                size: sideIconSize,
-                inactiveColor: Colors.white.withValues(alpha: 0.4),
+              // Espaciador de tamaño fijo igual al de la derecha para mantener alineación
+              const SizedBox(height: 24),
+              SizedBox(
+                width: 48,
+                height: 48,
+                child: Center(
+                  child: _AnimatedIconButton(
+                    tooltip: 'Aleatorio',
+                    pressedScale: 0.8,
+                    rotateAngle: 0.3 * math.pi,
+                    icon: ShuffleIndicator(
+                      isActive: shuffleMode,
+                      size: sideIconSize,
+                      inactiveColor: Colors.white.withValues(alpha: 0.4),
+                    ),
+                    onTap: () =>
+                        ref.read(audioPlayerProvider.notifier).toggleShuffle(),
+                  ),
+                ),
               ),
-              onPressed: () =>
-                  ref.read(audioPlayerProvider.notifier).toggleShuffle(),
-            ),
-          ],
+            ],
+          ),
         ),
 
         const SizedBox(width: 16),
@@ -659,118 +696,141 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            GestureDetector(
+            _AnimatedIconButton(
+              icon: Icon(
+                Icons.skip_previous,
+                color: Colors.white,
+                size: skipIconSize,
+              ),
+              slideOffset: -10.0,
+              pressedScale: 0.8,
               onTap: hasPrevious
                   ? () =>
                         ref.read(audioPlayerProvider.notifier).skipToPrevious()
                   : null,
               onLongPressStart: hasPrevious
-                  ? (_) => ref.read(audioPlayerProvider.notifier).startRewind()
+                  ? () => ref.read(audioPlayerProvider.notifier).startRewind()
                   : null,
               onLongPressEnd: hasPrevious
-                  ? (_) => ref.read(audioPlayerProvider.notifier).stopRewind()
+                  ? () => ref.read(audioPlayerProvider.notifier).stopRewind()
                   : null,
-              child: _AnimatedIconButton(
-                tooltip: 'Anterior',
-                icon: Icon(
-                  Icons.skip_previous,
-                  color: Colors.white,
-                  size: skipIconSize,
-                ),
-                onTap: null, // Dejamos que GestureDetector maneje el tap
-              ),
             ),
+            const SizedBox(width: 12),
+            PlayPauseButton(size: (playPauseSize / 1.5).clamp(48.0, 96.0)),
             const SizedBox(width: 12),
             _AnimatedIconButton(
-              tooltip: isPlaying ? 'Pausar' : 'Reproducir',
               icon: Icon(
-                isPlaying ? Icons.pause_circle : Icons.play_circle,
+                Icons.skip_next,
                 color: Colors.white,
-                size: playPauseSize,
+                size: skipIconSize,
               ),
-              onTap: () =>
-                  ref.read(audioPlayerProvider.notifier).togglePlayPause(),
-            ),
-            const SizedBox(width: 12),
-            GestureDetector(
+              slideOffset: 12.0,
+              pressedScale: 0.85,
               onTap: hasNext
                   ? () => ref.read(audioPlayerProvider.notifier).skipToNext()
                   : null,
               onLongPressStart: hasNext
-                  ? (_) => ref
+                  ? () => ref
                         .read(audioPlayerProvider.notifier)
                         .startFastForward()
                   : null,
               onLongPressEnd: hasNext
-                  ? (_) =>
+                  ? () =>
                         ref.read(audioPlayerProvider.notifier).stopFastForward()
                   : null,
-              child: _AnimatedIconButton(
-                tooltip: 'Siguiente',
-                icon: Icon(
-                  Icons.skip_next,
-                  color: Colors.white,
-                  size: skipIconSize,
-                ),
-                onTap: null,
-              ),
             ),
           ],
         ),
 
         const SizedBox(width: 16),
 
-        // Columna derecha: Temporizador y Ecualizador
-        Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              tooltip: 'Temporizador',
-              icon: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 300),
-                child: Icon(
-                  Icons.timer_outlined,
-                  key: ValueKey('timer_$isTimerActive'),
-                  size: sideIconSize,
-                  color: isTimerActive
-                      ? Theme.of(context).colorScheme.primary
-                      : Colors.white.withValues(alpha: 0.4),
-                ),
-              ),
-              onPressed: () {
-                ref.read(sleepTimerProvider.notifier).state = !isTimerActive;
-                if (ref.read(sleepTimerProvider)) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Temporizador activado (Simulado)'),
+        // Columna derecha: Temporizador y Ecualizador - Ancho fijo para centrar la fila del medio
+        SizedBox(
+          width: 64,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 48,
+                height: 48,
+                child: Center(
+                  child: _AnimatedIconButton(
+                    tooltip: 'Temporizador',
+                    icon: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      child: Icon(
+                        isTimerActive ? Icons.timer : Icons.timer_outlined,
+                        key: ValueKey('timer_$isTimerActive'),
+                        size: sideIconSize,
+                        color: isTimerActive
+                            ? Theme.of(context).colorScheme.primary
+                            : Colors.white.withValues(alpha: 0.4),
+                      ),
                     ),
-                  );
-                }
-              },
-            ),
-            IconButton(
-              tooltip: 'Ecualizador',
-              icon: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 300),
-                child: Icon(
-                  Icons.equalizer_rounded,
-                  key: ValueKey('eq_$eqEnabled'),
-                  size: sideIconSize,
-                  color: eqEnabled
-                      ? Theme.of(context).colorScheme.primary
-                      : Colors.white.withValues(alpha: 0.4),
+                    onTap: () => _showSleepTimerSheet(context, ref),
+                  ),
                 ),
               ),
-              onPressed: () {
-                showModalBottomSheet(
-                  context: context,
-                  isScrollControlled: true,
-                  backgroundColor: Colors.transparent,
-                  builder: (context) => const EqualizerSheet(),
-                );
-              },
-            ),
-          ],
+              // Espaciador de tamaño fijo para las etiquetas del timer
+              SizedBox(
+                height: 24,
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (isTimerActive &&
+                          sleepTimerState.remainingTime != null)
+                        Text(
+                          _formatDurationShort(sleepTimerState.remainingTime!),
+                          style: TextStyle(
+                            fontSize: 9,
+                            color: Theme.of(context).colorScheme.primary,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      if (isTimerActive && sleepTimerState.pauseAtEndOfTrack)
+                        Text(
+                          'FIN',
+                          style: TextStyle(
+                            fontSize: 9,
+                            color: Theme.of(context).colorScheme.primary,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              SizedBox(
+                width: 48,
+                height: 48,
+                child: Center(
+                  child: _AnimatedIconButton(
+                    tooltip: 'Ecualizador',
+                    icon: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      child: Icon(
+                        Icons.equalizer_rounded,
+                        key: ValueKey('eq_$eqEnabled'),
+                        size: sideIconSize,
+                        color: eqEnabled
+                            ? Theme.of(context).colorScheme.primary
+                            : Colors.white.withValues(alpha: 0.4),
+                      ),
+                    ),
+                    onTap: () {
+                      showModalBottomSheet(
+                        context: context,
+                        isScrollControlled: true,
+                        backgroundColor: Colors.transparent,
+                        builder: (context) => const EqualizerSheet(),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -978,27 +1038,193 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         // Optimization: Only render heavy artwork for current, next, and previous items
         final bool shouldRender = (index - currentIndex).abs() <= 1;
 
-        if (!shouldRender) {
-          return const SizedBox();
-        }
+        if (!shouldRender) return const SizedBox.shrink();
 
-        final itemTrack = queue[index];
+        return AnimatedBuilder(
+          animation: _pageController,
+          builder: (context, child) {
+            double value = 1.0;
+            if (_pageController.position.hasContentDimensions) {
+              value = (_pageController.page! - index).abs();
+              value = (1 - (value * 0.2)).clamp(0.8, 1.0);
+            } else {
+              // Initial state
+              value = (index == currentIndex) ? 1.0 : 0.8;
+            }
 
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8.0),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: TrackArtwork(
-              key: ValueKey(itemTrack.id),
-              trackId: itemTrack.id,
-              size: isLandscape ? 200 : 300,
-              borderRadius: 16,
-              filterQuality: FilterQuality.high,
-            ),
+            final safeValue = value.isNaN ? 1.0 : value;
+            return Center(
+              child: Transform.scale(
+                scale: safeValue,
+                child: Opacity(
+                  opacity: (safeValue < 0.7)
+                      ? 0.0
+                      : ((safeValue - 0.7) / 0.3).clamp(0.0, 1.0),
+                  child: child,
+                ),
+              ),
+            );
+          },
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              // Use the smallest of width or height to keep it square and finite
+              final artSize = math.min(
+                constraints.maxWidth,
+                constraints.maxHeight,
+              );
+
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: TrackArtwork(trackId: queue[index].id, size: artSize),
+                ),
+              );
+            },
           ),
         );
       },
     );
+  }
+
+  void _showSleepTimerSheet(BuildContext context, WidgetRef ref) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFF121212),
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(20),
+            topRight: Radius.circular(20),
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Temporizador',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'La reproducción se pausará automáticamente',
+              style: TextStyle(color: Colors.white70, fontSize: 13),
+            ),
+            const SizedBox(height: 16),
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                children: [
+                  _buildTimerOption(context, ref, 'Desactivar', null),
+                  _buildTimerOption(
+                    context,
+                    ref,
+                    'Al finalizar la canción',
+                    Duration.zero,
+                    isEndOfTrack: true,
+                  ),
+                  _buildTimerOption(
+                    context,
+                    ref,
+                    '5 minutos',
+                    const Duration(minutes: 5),
+                  ),
+                  _buildTimerOption(
+                    context,
+                    ref,
+                    '10 minutos',
+                    const Duration(minutes: 10),
+                  ),
+                  _buildTimerOption(
+                    context,
+                    ref,
+                    '15 minutos',
+                    const Duration(minutes: 15),
+                  ),
+                  _buildTimerOption(
+                    context,
+                    ref,
+                    '30 minutos',
+                    const Duration(minutes: 30),
+                  ),
+                  _buildTimerOption(
+                    context,
+                    ref,
+                    '45 minutos',
+                    const Duration(minutes: 45),
+                  ),
+                  _buildTimerOption(
+                    context,
+                    ref,
+                    '1 hora',
+                    const Duration(hours: 1),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTimerOption(
+    BuildContext context,
+    WidgetRef ref,
+    String title,
+    Duration? duration, {
+    bool isEndOfTrack = false,
+  }) {
+    return ListTile(
+      title: Text(title, style: const TextStyle(color: Colors.white)),
+      onTap: () {
+        if (duration == null) {
+          ref.read(sleepTimerProvider.notifier).cancelTimer();
+        } else if (isEndOfTrack) {
+          ref.read(sleepTimerProvider.notifier).setPauseAtEndOfTrack();
+        } else {
+          ref.read(sleepTimerProvider.notifier).setTimer(duration);
+        }
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              duration == null
+                  ? 'Temporizador desactivado'
+                  : 'Temporizador configurado: $title',
+            ),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      },
+    );
+  }
+
+  String _formatDurationShort(Duration duration) {
+    String twoDigits(int n) => n.toString().padLeft(2, "0");
+    String twoDigitMinutes = twoDigits(duration.inMinutes.remainder(60));
+    String twoDigitSeconds = twoDigits(duration.inSeconds.remainder(60));
+    if (duration.inHours > 0) {
+      return "${duration.inHours}:$twoDigitMinutes:$twoDigitSeconds";
+    }
+    return "$twoDigitMinutes:$twoDigitSeconds";
   }
 
   Widget _buildPlaceholderCover() {
@@ -1061,45 +1287,120 @@ class _SeekIndicator extends StatelessWidget {
 class _AnimatedIconButton extends StatefulWidget {
   final Widget icon;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPressStart;
+  final VoidCallback? onLongPressEnd;
   final String? tooltip;
-  final double pressedScale = 0.8;
-  final Duration duration = const Duration(milliseconds: 150);
+  final double pressedScale;
+  final double slideOffset;
+  final double rotateAngle;
 
   const _AnimatedIconButton({
     required this.icon,
     required this.onTap,
+    this.onLongPressStart,
+    this.onLongPressEnd,
     this.tooltip,
+    this.pressedScale = 0.9,
+    this.slideOffset = 0.0,
+    this.rotateAngle = 0.0,
   });
 
   @override
   _AnimatedIconButtonState createState() => _AnimatedIconButtonState();
 }
 
-class _AnimatedIconButtonState extends State<_AnimatedIconButton> {
-  bool _isPressed = false;
+class _AnimatedIconButtonState extends State<_AnimatedIconButton>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+  late Animation<Offset> _slideAnimation;
+  late Animation<double> _rotateAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+
+    _scaleAnimation = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 1.0, end: widget.pressedScale),
+        weight: 50,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: widget.pressedScale, end: 1.0),
+        weight: 50,
+      ),
+    ]).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
+
+    _slideAnimation = TweenSequence<Offset>([
+      TweenSequenceItem(
+        tween: Tween<Offset>(
+          begin: Offset.zero,
+          end: Offset(widget.slideOffset, 0),
+        ),
+        weight: 50,
+      ),
+      TweenSequenceItem(
+        tween: Tween<Offset>(
+          begin: Offset(widget.slideOffset, 0),
+          end: Offset.zero,
+        ),
+        weight: 50,
+      ),
+    ]).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
+
+    _rotateAnimation = Tween<double>(
+      begin: 0.0,
+      end: widget.rotateAngle,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   void _handleTap() {
     if (widget.onTap == null) return;
-
-    setState(() => _isPressed = true);
+    _controller.forward(from: 0);
     widget.onTap!();
-
-    Future.delayed(widget.duration, () {
-      if (mounted) {
-        setState(() => _isPressed = false);
-      }
-    });
   }
 
   @override
   Widget build(BuildContext context) {
     Widget content = GestureDetector(
       onTap: _handleTap,
-      child: AnimatedScale(
-        scale: _isPressed ? widget.pressedScale : 1.0,
-        duration: widget.duration,
-        curve: Curves.easeInOut,
-        child: widget.icon, // The icon widget itself (e.g. Icon or IconButton)
+      onLongPressStart: widget.onLongPressStart != null
+          ? (_) {
+              _controller.forward(from: 0);
+              widget.onLongPressStart!();
+            }
+          : null,
+      onLongPressEnd: widget.onLongPressEnd != null
+          ? (_) {
+              widget.onLongPressEnd!();
+            }
+          : null,
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          return Transform.rotate(
+            angle: _rotateAnimation.value,
+            child: Transform.translate(
+              offset: _slideAnimation.value,
+              child: Transform.scale(
+                scale: _scaleAnimation.value,
+                child: child,
+              ),
+            ),
+          );
+        },
+        child: widget.icon,
       ),
     );
 

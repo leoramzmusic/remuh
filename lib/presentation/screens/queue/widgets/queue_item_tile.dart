@@ -35,7 +35,91 @@ class QueueItemTile extends ConsumerWidget {
                 : null);
     final colorScheme = Theme.of(context).colorScheme;
 
-    Widget content = ListTile(
+    if (isCurrent) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+        child: InkWell(
+          onTap: () => ref
+              .read(audioPlayerProvider.notifier)
+              .skipToEffectiveIndex(displayIndex),
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: colorScheme.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: colorScheme.primary.withValues(alpha: 0.4),
+                width: 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: colorScheme.primary.withValues(alpha: 0.05),
+                  blurRadius: 10,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Artwork
+                SizedBox(
+                  width: 48,
+                  height: 48,
+                  child: TrackArtwork(
+                    trackId: track.id,
+                    size: 48,
+                    borderRadius: 8,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                // Text Info
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        track.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.primary,
+                          fontSize: 15,
+                        ),
+                      ),
+                      Text(
+                        track.artist ?? 'Artista desconocido',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: colorScheme.primary.withValues(alpha: 0.7),
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                // Drag handle (trailing)
+                if (!isFiltered)
+                  ReorderableDragStartListener(
+                    index: displayIndex,
+                    child: Icon(
+                      Icons.drag_handle,
+                      color: colorScheme.primary.withValues(alpha: 0.5),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       leading: SizedBox(
         width: 48,
@@ -44,35 +128,14 @@ class QueueItemTile extends ConsumerWidget {
           trackId: track.id,
           size: 48,
           borderRadius: 8,
-          placeholderIcon: isCurrent ? null : icons.lyrics,
+          placeholderIcon: icons.lyrics,
         ),
       ),
-      title: Row(
-        children: [
-          if (isCurrent) ...[
-            Icon(Icons.play_arrow, size: 16, color: colorScheme.primary),
-            const SizedBox(width: 8),
-          ],
-          Expanded(
-            child: Text(
-              track.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
-                color: isCurrent ? colorScheme.primary : null,
-              ),
-            ),
-          ),
-        ],
-      ),
+      title: Text(track.title, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Text(
         track.artist ?? 'Artista desconocido',
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          color: isCurrent ? colorScheme.primary.withValues(alpha: 0.7) : null,
-        ),
       ),
       trailing: isFiltered
           ? null
@@ -80,12 +143,13 @@ class QueueItemTile extends ConsumerWidget {
               index: displayIndex,
               child: Icon(
                 Icons.drag_handle,
-                color: colorScheme.onSurface.withValues(alpha: 0.4),
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.4),
               ),
             ),
       onTap: () {
         if (isFiltered) {
-          // In filtered mode, find the track in the main queue and play it
           final mainIndex = contextQueue.indexWhere((t) => t.id == track.id);
           if (mainIndex != -1) {
             ref.read(audioPlayerProvider.notifier).loadTrackInQueue(mainIndex);
@@ -96,34 +160,6 @@ class QueueItemTile extends ConsumerWidget {
               .skipToEffectiveIndex(displayIndex);
         }
       },
-    );
-
-    return SizedBox(
-      height: 72.0,
-      child: RepaintBoundary(
-        key: key,
-        child: isCurrent
-            ? Container(
-                margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-                decoration: BoxDecoration(
-                  color: colorScheme.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: colorScheme.primary.withValues(alpha: 0.5),
-                    width: 1.5,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: colorScheme.primary.withValues(alpha: 0.1),
-                      blurRadius: 8,
-                      spreadRadius: 0,
-                    ),
-                  ],
-                ),
-                child: Center(child: content),
-              )
-            : Center(child: content),
-      ),
     );
   }
 }

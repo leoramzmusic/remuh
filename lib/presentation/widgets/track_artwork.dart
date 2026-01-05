@@ -60,8 +60,8 @@ class TrackArtwork extends ConsumerWidget {
                   fit: BoxFit.cover,
                   filterQuality: filterQuality,
                   gaplessPlayback: true,
-                  cacheWidth: (size * 2).toInt(), // Scale for device density
-                  cacheHeight: (size * 2).toInt(),
+                  cacheWidth: size.isFinite ? (size * 2).toInt() : 600,
+                  cacheHeight: size.isFinite ? (size * 2).toInt() : 600,
                 ),
               ),
             );

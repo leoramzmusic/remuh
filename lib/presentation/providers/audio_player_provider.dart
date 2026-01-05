@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'sleep_timer_provider.dart';
 import '../../data/repositories/audio_repository_impl.dart';
 import '../../domain/entities/track.dart';
 import '../../domain/repositories/audio_repository.dart';
@@ -173,6 +174,7 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
   final PlayAudio _playAudio;
   final PauseAudio _pauseAudio;
   final SeekAudio _seekAudio;
+  final Ref _ref;
 
   AudioPlayerNotifier(
     this._repository,
@@ -181,6 +183,7 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
     this._playAudio,
     this._pauseAudio,
     this._seekAudio,
+    this._ref,
   ) : super(const AudioPlayerState()) {
     _init();
     _restoreSettings();
@@ -343,6 +346,15 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
   void _init() {
     Logger.info('Initializing AudioPlayerNotifier');
 
+    // Escuchar el temporizador de sueño
+    _ref.listen(sleepTimerProvider, (previous, next) {
+      if (previous?.isActive == true &&
+          next.isActive == false &&
+          next.remainingTime == Duration.zero) {
+        pause();
+      }
+    });
+
     // Sincronizar track actual al inicio (por si ya hay algo sonando en background)
     final initialTrack = _repository.currentTrack;
     if (initialTrack != null) {
@@ -361,6 +373,13 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
       if (index >= 0 && index < state.queue.length) {
         final track = state.queue[index];
         if (state.currentTrack?.id != track.id) {
+          // Verificar si el temporizador de sueño está en modo "Fin de pista"
+          final sleepTimer = _ref.read(sleepTimerProvider);
+          if (sleepTimer.isActive && sleepTimer.pauseAtEndOfTrack) {
+            _ref.read(sleepTimerProvider.notifier).cancelTimer();
+            pause();
+          }
+
           state = state.copyWith(currentIndex: index, currentTrack: track);
         }
       }
@@ -658,11 +677,35 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
       if (state.isPlaying) {
         await _pauseAudio();
       } else {
-        await _playAudio();
+        if (state.currentTrack == null && state.queue.isNotEmpty) {
+          // Si no hay canción seleccionada, pero hay cola, reproducir la primera canción
+          // Respetamos el orden efectivo (aleatorio o no)
+          if (state.shuffleMode && state.shuffledIndices.isNotEmpty) {
+            await loadTrackInQueue(state.shuffledIndices[0]);
+          } else {
+            await loadTrackInQueue(0);
+          }
+          await _playAudio();
+        } else if (state.queue.isNotEmpty) {
+          await _playAudio();
+        } else {
+          Logger.warning('Play/Pause pulsado pero la cola está vacía');
+        }
       }
     } catch (e) {
       Logger.error('Error toggling play/pause', e);
       state = state.copyWith(error: e.toString());
+    }
+  }
+
+  /// Pausa la reproducción
+  Future<void> pause() async {
+    try {
+      if (state.isPlaying) {
+        await _pauseAudio();
+      }
+    } catch (e) {
+      Logger.error('Error pausing audio', e);
     }
   }
 
@@ -919,5 +962,6 @@ final audioPlayerProvider =
         playAudio,
         pauseAudio,
         seekAudio,
+        ref,
       );
     });

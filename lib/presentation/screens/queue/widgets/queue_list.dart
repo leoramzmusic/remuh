@@ -42,7 +42,7 @@ class QueueList extends ConsumerWidget {
             contextQueue: effectiveQueue,
             isFiltered: true,
             shuffleMode: shuffleMode,
-            key: ValueKey(track.id),
+            key: ValueKey('search_${track.id}_$index'),
           );
         },
       );
@@ -69,7 +69,7 @@ class QueueList extends ConsumerWidget {
           contextQueue: effectiveQueue,
           isFiltered: false,
           shuffleMode: shuffleMode,
-          key: ValueKey(track.id),
+          key: ValueKey('queue_${track.id}_$index'),
         );
       },
     );
