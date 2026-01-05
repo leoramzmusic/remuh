@@ -148,15 +148,24 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
               },
             ),
             // Next button
-            IconButton(
-              icon: Icon(
-                Icons.skip_next_rounded,
-                size: 28,
-                color: _backgroundColors != null ? Colors.white : null,
-              ),
-              onPressed: () {
+            GestureDetector(
+              onTap: () {
                 ref.read(audioPlayerProvider.notifier).skipToNext();
               },
+              onLongPressStart: (_) {
+                ref.read(audioPlayerProvider.notifier).startFastForward();
+              },
+              onLongPressEnd: (_) {
+                ref.read(audioPlayerProvider.notifier).stopFastForward();
+              },
+              child: IconButton(
+                icon: Icon(
+                  Icons.skip_next_rounded,
+                  size: 28,
+                  color: _backgroundColors != null ? Colors.white : null,
+                ),
+                onPressed: null, // GestureDetector handles it
+              ),
             ),
           ],
         ),

@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:audio_session/audio_session.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:just_audio/just_audio.dart';
-import '../core/utils/logger.dart';
 import '../domain/entities/track.dart';
 import '../domain/repositories/audio_repository.dart';
 // Note: We removed 'implements AudioRepository' because AudioHandler has its own interface.
@@ -11,11 +10,18 @@ import '../domain/repositories/audio_repository.dart';
 /// Handler de audio para background playback
 class AudioPlayerHandler extends BaseAudioHandler with QueueHandler {
   final _player = AudioPlayer();
-  String? _lastLoadedTrackId; // Track identity to avoid redundant loads
+  final _playlist = ConcatenatingAudioSource(
+    useLazyPreparation: true,
+    children: [],
+  );
 
   // Stream para que el Notifier escuche peticiones de skip desde la notificación
   final _skipRequestController = StreamController<bool>.broadcast();
   Stream<bool> get skipRequestStream => _skipRequestController.stream;
+
+  // Stream para cambios de índice automáticos (para gapless playback)
+  final _indexChangeController = StreamController<int>.broadcast();
+  Stream<int> get indexChangeStream => _indexChangeController.stream;
 
   AudioPlayerHandler() {
     _init();
@@ -24,6 +30,9 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler {
   Future<void> _init() async {
     final session = await AudioSession.instance;
     await session.configure(const AudioSessionConfiguration.music());
+
+    // Configurar playlist inicial
+    await _player.setAudioSource(_playlist);
 
     // Sincronizar estado inicial
     _syncState();
@@ -36,16 +45,34 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler {
 
     // Escuchar cambios en MediaItem para actualizar notificación inmediatamente
     mediaItem.listen((_) => _syncState());
+
+    // Escuchar cambios de índice automáticos (just_audio maneja el avance)
+    _player.currentIndexStream.listen((index) {
+      if (index != null) {
+        _indexChangeController.add(index);
+        _updateMetadataForIndex(index);
+      }
+    });
+
+    // Escuchar completado para avanzar si no hay Concatenating (fallback)
+    _player.processingStateStream.listen((state) {
+      if (state == ProcessingState.completed) {
+        // just_audio avanza solo si hay más items en ConcatenatingAudioSource
+      }
+    });
+  }
+
+  void _updateMetadataForIndex(int index) {
+    if (index >= 0 && index < queue.value.length) {
+      final item = queue.value[index];
+      mediaItem.add(item);
+    }
   }
 
   /// Sincroniza el estado de just_audio con audio_service
   void _syncState() {
     final playing = _player.playing;
     final processingState = _player.processingState;
-
-    Logger.info(
-      'Syncing Audio State: playing=$playing, processing=$processingState',
-    );
 
     final state = playbackState.value.copyWith(
       controls: [
@@ -78,13 +105,9 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler {
       updatePosition: _player.position,
       bufferedPosition: _player.bufferedPosition,
       speed: _player.speed,
-      // Usar el índice del mediaItem actual si existe
-      queueIndex: 0,
+      queueIndex: _player.currentIndex,
     );
 
-    Logger.info(
-      'Broadcasting PlaybackState: playing=${state.playing}, processing=${state.processingState}',
-    );
     playbackState.add(state);
   }
 
@@ -101,80 +124,105 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler {
   Future<void> seek(Duration position) => _player.seek(position);
 
   @override
+  Future<void> skipToQueueItem(int index) =>
+      _player.seek(Duration.zero, index: index);
+
+  @override
   Future<void> skipToNext() async {
-    Logger.info('SkipToNext requested from Notification');
-    _skipRequestController.add(true); // true = next
+    if (_player.hasNext) {
+      await _player.seekToNext();
+    } else {
+      // Notificar al provider si queremos manejar wrap-around o lógica personalizada
+      _skipRequestController.add(true);
+    }
   }
 
   @override
   Future<void> skipToPrevious() async {
-    Logger.info('SkipToPrevious requested from Notification');
-    _skipRequestController.add(false); // false = previous
+    if (_player.hasPrevious || _player.position.inSeconds > 3) {
+      await _player.seekToPrevious();
+    } else {
+      _skipRequestController.add(false);
+    }
   }
 
   @override
   Future<void> onTaskRemoved() async {
-    // Si no hay música reproduciéndose, cerramos el servicio por completo
     if (!playbackState.value.playing) {
       await stop();
     }
   }
 
-  // Custom method to load a track from our App
-  Future<void> loadTrack(Track track) async {
-    try {
-      if (_lastLoadedTrackId == track.id &&
-          _player.audioSource != null &&
-          _player.processingState != ProcessingState.idle) {
-        Logger.info('Track ${track.title} already active, skipping load.');
-        return;
-      }
-      _lastLoadedTrackId = track.id;
+  /// Actualiza la cola de reproducción en audio_service y just_audio
+  @override
+  Future<void> updateQueue(
+    List<MediaItem> newQueue, {
+    int initialIndex = 0,
+  }) async {
+    queue.add(newQueue);
 
-      Logger.info('Loading track in Handler: ${track.title}');
+    final List<AudioSource> newSources = newQueue.map((item) {
+      final url = item.extras?['url'] as String?;
+      final path = item.extras?['path'] as String?;
 
-      // Obtener artUri del track (ya preparado por el repositorio)
-      Uri? artUri;
-      if (track.artworkPath != null) {
-        artUri = Uri.parse(track.artworkPath!);
-      }
-
-      // Actualizar notificación
-      final item = MediaItem(
-        id: track.id,
-        album: track.album ?? '',
-        title: track.title,
-        artist: track.artist ?? '',
-        duration: track.duration,
-        artUri: artUri,
-        extras: {'url': track.fileUrl, 'path': track.filePath},
-      );
-      Logger.info(
-        'Updating MediaItem: ${item.id} - ${item.title}, artUri: ${item.artUri}',
-      );
-      mediaItem.add(item);
-
-      // Cargar audio
-      AudioSource source;
-      if (track.fileUrl != null &&
-          (track.fileUrl!.startsWith('http') ||
-              track.fileUrl!.startsWith('content://'))) {
-        source = AudioSource.uri(Uri.parse(track.fileUrl!));
+      if (url != null &&
+          (url.startsWith('http') || url.startsWith('content://'))) {
+        return AudioSource.uri(Uri.parse(url), tag: item);
       } else {
-        source = AudioSource.file(track.filePath);
+        return AudioSource.file(path!, tag: item);
       }
+    }).toList();
 
-      await _player.setAudioSource(source);
-    } catch (e) {
-      Logger.error('Error loading track in handler', e);
-      rethrow;
-    }
+    // Reemplazamos toda la fuente para asegurar el initialIndex y gapless
+    await _player.setAudioSource(
+      ConcatenatingAudioSource(useLazyPreparation: true, children: newSources),
+      initialIndex: initialIndex,
+      initialPosition: Duration.zero,
+    );
   }
 
-  // Expose internal player streams if needed for Repo (legacy support)
-  // But ideally Repo should use AudioHandler streams (playbackState).
-  // Current Repo uses _player.playerStateStream etc.
-  // We can bridge them.
+  // Legacy support for single track load (still used by repository for quick plays)
+  Future<void> loadTrack(Track track) async {
+    // Check if track is already in the queue to preserve gapless playback
+    final currentQueue = queue.value;
+    final index = currentQueue.indexWhere((item) => item.id == track.id);
+
+    if (index != -1) {
+      // Track is already in queue, just skip to it
+      if (_player.currentIndex != index) {
+        await skipToQueueItem(index);
+      }
+      // Update metadata (in case it has non-standard values or new artwork path)
+      _updateMetadataForTrack(track);
+      return;
+    }
+
+    // Para gapless playback, idealmente usamos updateQueue + skipToQueueItem.
+    // Pero si se llama loadTrack individualmente, creamos una cola de uno.
+    final item = MediaItem(
+      id: track.id,
+      album: track.album ?? '',
+      title: track.title,
+      artist: track.artist ?? '',
+      duration: track.duration,
+      artUri: track.artworkPath != null ? Uri.parse(track.artworkPath!) : null,
+      extras: {'url': track.fileUrl, 'path': track.filePath},
+    );
+    await updateQueue([item]);
+  }
+
+  void _updateMetadataForTrack(Track track) {
+    final item = MediaItem(
+      id: track.id,
+      album: track.album ?? '',
+      title: track.title,
+      artist: track.artist ?? '',
+      duration: track.duration,
+      artUri: track.artworkPath != null ? Uri.parse(track.artworkPath!) : null,
+      extras: {'url': track.fileUrl, 'path': track.filePath},
+    );
+    mediaItem.add(item);
+  }
 
   Stream<Duration> get positionStream => _player.positionStream;
   Stream<Duration?> get durationStream => _player.durationStream;
@@ -196,4 +244,8 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler {
   }
 
   int? get androidAudioSessionId => _player.androidAudioSessionId;
+
+  Future<void> onSetRepeatMode(AudioServiceRepeatMode repeatMode) async {
+    // audio_service builtin call
+  }
 }

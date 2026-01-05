@@ -11,9 +11,15 @@ class TrackArtwork extends ConsumerWidget {
   final double size;
   final double borderRadius;
   final IconData? placeholderIcon;
+  final FilterQuality filterQuality;
 
   // Simple in-memory cache to speed up loading and prevent flickering on frequent reloads
+  // Limited to 150 items to avoid memory exhaustion (OOM)
   static final Map<String, Uint8List> _artworkCache = {};
+  static final Map<String, Future<Uint8List?>> _pendingQueries = {};
+  static final _audioQuery = OnAudioQuery();
+  static const int _maxCacheSize = 150;
+  static final List<String> _cacheKeys = [];
 
   const TrackArtwork({
     super.key,
@@ -21,6 +27,7 @@ class TrackArtwork extends ConsumerWidget {
     this.size = 50,
     this.borderRadius = 8,
     this.placeholderIcon,
+    this.filterQuality = FilterQuality.medium,
   });
 
   @override
@@ -33,7 +40,10 @@ class TrackArtwork extends ConsumerWidget {
       width: size,
       height: size,
       child: FutureBuilder<Uint8List?>(
-        future: _getArtworkBytes(trackId),
+        initialData: _artworkCache[trackId],
+        future: _artworkCache.containsKey(trackId)
+            ? null
+            : _getArtworkBytes(trackId),
         builder: (context, snapshot) {
           Widget content;
 
@@ -48,9 +58,10 @@ class TrackArtwork extends ConsumerWidget {
                   width: size,
                   height: size,
                   fit: BoxFit.cover,
-                  filterQuality:
-                      FilterQuality.medium, // Optimized for performance
+                  filterQuality: filterQuality,
                   gaplessPlayback: true,
+                  cacheWidth: (size * 2).toInt(), // Scale for device density
+                  cacheHeight: (size * 2).toInt(),
                 ),
               ),
             );
@@ -80,7 +91,7 @@ class TrackArtwork extends ConsumerWidget {
             transitionBuilder: (Widget child, Animation<double> animation) {
               return FadeTransition(opacity: animation, child: child);
             },
-            child: content,
+            child: RepaintBoundary(child: content),
           );
         },
       ),
@@ -92,40 +103,61 @@ class TrackArtwork extends ConsumerWidget {
     if (_artworkCache.containsKey(trackId)) {
       return _artworkCache[trackId];
     }
+
+    // Check if there is an active query for this track to avoid duplicates
+    if (_pendingQueries.containsKey(trackId)) {
+      return _pendingQueries[trackId];
+    }
+
     return cacheArtwork(trackId);
   }
 
   /// Pre-caches artwork bytes for a given track ID
   static Future<Uint8List?> cacheArtwork(String trackId) async {
-    // Check cache first
+    // Check if already cached
     if (_artworkCache.containsKey(trackId)) {
       return _artworkCache[trackId];
     }
 
-    try {
-      // Validate ID is numeric
-      int? id;
-      try {
-        id = int.parse(trackId);
-      } catch (_) {
-        return null;
-      }
+    // Check if there's already a query in progress
+    if (_pendingQueries.containsKey(trackId)) {
+      return _pendingQueries[trackId];
+    }
 
-      final bytes = await OnAudioQuery().queryArtwork(
+    final queryFuture = _performQuery(trackId);
+    _pendingQueries[trackId] = queryFuture;
+
+    try {
+      final bytes = await queryFuture;
+      if (bytes != null) {
+        // Atomic cache update
+        if (_artworkCache.length >= _maxCacheSize) {
+          final oldestKey = _cacheKeys.removeAt(0);
+          _artworkCache.remove(oldestKey);
+        }
+        _artworkCache[trackId] = bytes;
+        _cacheKeys.add(trackId);
+      }
+      return bytes;
+    } finally {
+      _pendingQueries.remove(trackId);
+    }
+  }
+
+  static Future<Uint8List?> _performQuery(String trackId) async {
+    try {
+      int? id = int.tryParse(trackId);
+      if (id == null) return null;
+
+      return await _audioQuery.queryArtwork(
         id,
         ArtworkType.AUDIO,
-        size: 500, // Reduced from 1000 for performance
+        size: 800,
         quality: 100,
         format: ArtworkFormat.JPEG,
       );
-
-      if (bytes != null) {
-        _artworkCache[trackId] = bytes;
-      }
-
-      return bytes;
     } catch (e) {
-      Logger.error('Error fetching/caching artwork for $trackId: $e');
+      Logger.error('Error querying artwork for $trackId: $e');
       return null;
     }
   }

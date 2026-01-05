@@ -19,32 +19,22 @@ class TrackRepositoryImpl implements TrackRepository {
   @override
   Future<void> incrementPlayCount(String trackId) async {
     final db = await _dbService.database;
+    final now = DateTime.now().toIso8601String();
 
-    // Check if entry exists
-    final List<Map<String, dynamic>> res = await db.query(
-      'track_stats',
-      where: 'trackId = ?',
-      whereArgs: [trackId],
-    );
-
-    if (res.isEmpty) {
-      await db.insert('track_stats', {
+    await db.transaction((txn) async {
+      // Use ignore to handle the case where it might already exist but query missed it
+      // or to ensure we have a row to update.
+      await txn.insert('track_stats', {
         'trackId': trackId,
-        'playCount': 1,
-        'lastPlayedAt': DateTime.now().toIso8601String(),
-      });
-    } else {
-      final currentCount = res.first['playCount'] as int;
-      await db.update(
-        'track_stats',
-        {
-          'playCount': currentCount + 1,
-          'lastPlayedAt': DateTime.now().toIso8601String(),
-        },
-        where: 'trackId = ?',
-        whereArgs: [trackId],
+        'playCount': 0,
+        'lastPlayedAt': now,
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
+
+      await txn.rawUpdate(
+        'UPDATE track_stats SET playCount = playCount + 1, lastPlayedAt = ? WHERE trackId = ?',
+        [now, trackId],
       );
-    }
+    });
   }
 
   @override

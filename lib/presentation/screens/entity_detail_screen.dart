@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:math' as math;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/entities/track.dart';
 import '../providers/audio_player_provider.dart';
@@ -19,6 +20,10 @@ class EntityDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final isShuffleActive = ref.watch(
+      audioPlayerProvider.select((s) => s.shuffleMode),
+    );
+
     return Scaffold(
       appBar: AppBar(title: Text(title)),
       body: tracks.isEmpty
@@ -27,35 +32,86 @@ class EntityDetailScreen extends ConsumerWidget {
               itemCount: tracks.length + 1,
               itemBuilder: (context, index) {
                 if (index == 0) {
-                  return ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: Theme.of(
-                        context,
-                      ).colorScheme.primaryContainer,
-                      child: Consumer(
-                        builder: (context, ref, _) {
-                          final isShuffleActive = ref.watch(
-                            audioPlayerProvider.select((s) => s.shuffleMode),
+                  return Material(
+                    color: isShuffleActive
+                        ? Theme.of(
+                            context,
+                          ).colorScheme.primary.withValues(alpha: 0.15)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(12),
+                    child: InkWell(
+                      onTap: () {
+                        final notifier = ref.read(audioPlayerProvider.notifier);
+                        int shuffleStartIdx = 0;
+                        if (tracks.length > 1) {
+                          shuffleStartIdx = math.Random().nextInt(
+                            tracks.length,
                           );
-                          return ShuffleIndicator(
-                            isActive: isShuffleActive,
-                            size: 28,
-                            activeColor: Colors.orangeAccent,
-                            inactiveColor: Colors.white,
-                          );
-                        },
+                        }
+                        final startTrack = tracks[shuffleStartIdx];
+
+                        notifier.loadPlaylist(
+                          tracks,
+                          shuffleStartIdx,
+                          startShuffled: true,
+                        );
+
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Reproducción Aleatoria Activa desde ${startTrack.title}',
+                            ),
+                            backgroundColor: Theme.of(
+                              context,
+                            ).colorScheme.primary,
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const PlayerScreen(),
+                          ),
+                        );
+                      },
+                      borderRadius: BorderRadius.circular(12),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        child: Row(
+                          children: [
+                            ShuffleIndicator(
+                              isActive: isShuffleActive,
+                              size: 28,
+                              activeColor: Colors.orangeAccent,
+                              inactiveColor: Colors.white,
+                            ),
+                            const SizedBox(width: 16),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'REPRODUCCIÓN ALEATORIA',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: isShuffleActive
+                                        ? Theme.of(context).colorScheme.primary
+                                        : null,
+                                  ),
+                                ),
+                                Text(
+                                  '${tracks.length} canciones',
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                    title: const Text(
-                      'Modo Aleatorio',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Text('${tracks.length} canciones'),
-                    onTap: () {
-                      ref
-                          .read(audioPlayerProvider.notifier)
-                          .loadPlaylist(tracks, 0, startShuffled: true);
-                    },
                   );
                 }
 

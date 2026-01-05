@@ -60,6 +60,12 @@ abstract class AudioRepository {
   /// Activar/desactivar aleatorio
   Future<void> setShuffleMode(bool enabled);
 
+  /// Actualizar la cola de reproducción para gapless playback
+  Future<void> updateQueue(List<Track> tracks, {int initialIndex = 0});
+
+  /// Stream para cambios de índice automáticos (gapless)
+  Stream<int> get indexChangeStream;
+
   /// Eliminar permanentemente el archivo de una pista
   Future<bool> deleteTrackFile(Track track);
 }

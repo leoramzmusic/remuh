@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/audio_player_provider.dart';
 import '../providers/favorites_provider.dart';
-import '../screens/queue_screen.dart';
+import '../screens/queue/queue_screen.dart';
 import 'equalizer_sheet.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -82,9 +82,18 @@ class SecondaryActions extends ConsumerWidget {
             icon: Icons.queue_music_rounded,
             label: 'Cola',
             onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const QueueScreen()),
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (context) => DraggableScrollableSheet(
+                  initialChildSize: 0.6,
+                  minChildSize: 0.4,
+                  maxChildSize: 1.0,
+                  expand: false,
+                  builder: (context, scrollController) =>
+                      QueueScreen(scrollController: scrollController),
+                ),
               );
             },
           ),

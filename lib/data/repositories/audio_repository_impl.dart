@@ -159,21 +159,10 @@ class AudioRepositoryImpl implements AudioRepository {
     }
   }
 
-  @override
-  Future<void> loadTrack(Track track) async {
-    // Para mostrar carátula en la notificación de sistema (android/ios),
-    // necesitamos un artUri (file:// o http://).
-    // Como on_audio_query nos da bytes, los guardamos temporalmente en el caché.
-    Track trackWithArt = track;
-
+  /// Prepara un track con su carátula temporal para la notificación
+  Future<Track> _prepareTrackWithArtwork(Track track) async {
     try {
-      int? trackId;
-      try {
-        trackId = int.parse(track.id);
-      } catch (_) {
-        // ID not numeric (e.g. test ID), skip local artwork fetch
-      }
-
+      int? trackId = int.tryParse(track.id);
       if (trackId != null) {
         final artworkBytes = await _localAudioSource.getArtwork(trackId);
         if (artworkBytes != null) {
@@ -182,15 +171,45 @@ class AudioRepositoryImpl implements AudioRepository {
             '${tempDir.path}/notification_art_${track.id}.jpg',
           );
           await artFile.writeAsBytes(artworkBytes);
-          trackWithArt = track.copyWith(artworkPath: artFile.uri.toString());
+          return track.copyWith(artworkPath: artFile.uri.toString());
         }
       }
     } catch (e) {
-      // Si falla la carátula, seguimos con el track normal sin imagen
+      Logger.error('Error preparing artwork for ${track.title}', e);
     }
+    return track;
+  }
 
+  @override
+  Future<void> loadTrack(Track track) async {
+    final trackWithArt = await _prepareTrackWithArtwork(track);
     return _audioHandler.loadTrack(trackWithArt);
   }
+
+  @override
+  Future<void> updateQueue(List<Track> tracks, {int initialIndex = 0}) async {
+    final List<as_lib.MediaItem> items = [];
+    for (final track in tracks) {
+      // Optimizamos: para la cola no cargamos todas las imágenes a disco de golpe
+      // just_audio las cargará bajo demanda si usamos portadas por defecto o las inyectamos luego.
+      // Pero para consistencia mínima usamos la metadata básica.
+      items.add(
+        as_lib.MediaItem(
+          id: track.id,
+          album: track.album ?? '',
+          title: track.title,
+          artist: track.artist ?? '',
+          duration: track.duration,
+          // artUri dejamos que se cargue dinámicamente o cuando sea la pista activa
+          extras: {'url': track.fileUrl, 'path': track.filePath},
+        ),
+      );
+    }
+    await _audioHandler.updateQueue(items, initialIndex: initialIndex);
+  }
+
+  @override
+  Stream<int> get indexChangeStream => _audioHandler.indexChangeStream;
 
   @override
   Future<void> play() => _audioHandler.play();

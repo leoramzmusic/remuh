@@ -11,7 +11,7 @@ import '../providers/dynamic_color_provider.dart';
 import '../providers/audio_player_provider.dart';
 import '../widgets/track_artwork.dart';
 import '../widgets/progress_bar.dart';
-import 'queue_screen.dart';
+import 'queue/queue_screen.dart';
 import '../widgets/lyrics_view.dart';
 import '../providers/library_view_model.dart';
 import '../widgets/marquee_text.dart';
@@ -297,7 +297,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         },
                         child: DraggableScrollableSheet(
                           initialChildSize: 0.6,
-                          minChildSize: 0.0,
+                          minChildSize:
+                              0.4, // Keep it slightly visible or at least have a solid floor
                           maxChildSize: 1.0,
                           expand: true,
                           snap: true,
@@ -325,9 +326,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       if (next != null) {
         // Pre-cache next artwork
         final currentIndex = ref.read(audioPlayerProvider).currentIndex;
-        if (currentIndex != -1 && currentIndex < queue.length - 1) {
-          final nextTrack = queue[currentIndex + 1];
-          TrackArtwork.cacheArtwork(nextTrack.id);
+        if (currentIndex != -1) {
+          // Pre-cache next 3 tracks for smooth scrolling/skipping
+          for (int i = 1; i <= 3; i++) {
+            if (currentIndex + i < queue.length) {
+              TrackArtwork.cacheArtwork(queue[currentIndex + i].id);
+            }
+          }
         }
         // Pre-cache previous artwork
         if (currentIndex > 0) {
@@ -466,11 +471,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                   ? maxHeight * 0.4
                                   : MediaQuery.of(context).size.width * 0.8)
                               .clamp(150.0, 400.0),
-                      child: _buildAlbumCover(
-                        displayedTrack,
-                        queue,
-                        currentIndex,
-                        false,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          _buildAlbumCover(
+                            displayedTrack,
+                            queue,
+                            currentIndex,
+                            false,
+                          ),
+                          if (ref.watch(
+                            audioPlayerProvider.select(
+                              (s) => s.isFastForwarding,
+                            ),
+                          ))
+                            const _SeekIndicator(isForward: true),
+                          if (ref.watch(
+                            audioPlayerProvider.select((s) => s.isRewinding),
+                          ))
+                            const _SeekIndicator(isForward: false),
+                        ],
                       ),
                     ),
                   ),
@@ -510,10 +530,38 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   Widget _buildSongInfo(Track? track) {
+    final shuffleMode = ref.watch(
+      audioPlayerProvider.select((s) => s.shuffleMode),
+    );
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 32.0),
       child: Column(
         children: [
+          // Mode Indicator
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: (shuffleMode ? Colors.orangeAccent : Colors.blueAccent)
+                  .withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: (shuffleMode ? Colors.orangeAccent : Colors.blueAccent)
+                    .withValues(alpha: 0.2),
+                width: 1,
+              ),
+            ),
+            child: Text(
+              shuffleMode ? 'MODO ALEATORIO' : 'MODO ORDENADO',
+              style: TextStyle(
+                color: shuffleMode ? Colors.orangeAccent : Colors.blueAccent,
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.5,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 300),
             transitionBuilder: (Widget child, Animation<double> animation) {
@@ -611,17 +659,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _AnimatedIconButton(
-              tooltip: 'Anterior',
-              icon: Icon(
-                Icons.skip_previous,
-                color: Colors.white,
-                size: skipIconSize,
-              ),
+            GestureDetector(
               onTap: hasPrevious
                   ? () =>
                         ref.read(audioPlayerProvider.notifier).skipToPrevious()
                   : null,
+              onLongPressStart: hasPrevious
+                  ? (_) => ref.read(audioPlayerProvider.notifier).startRewind()
+                  : null,
+              onLongPressEnd: hasPrevious
+                  ? (_) => ref.read(audioPlayerProvider.notifier).stopRewind()
+                  : null,
+              child: _AnimatedIconButton(
+                tooltip: 'Anterior',
+                icon: Icon(
+                  Icons.skip_previous,
+                  color: Colors.white,
+                  size: skipIconSize,
+                ),
+                onTap: null, // Dejamos que GestureDetector maneje el tap
+              ),
             ),
             const SizedBox(width: 12),
             _AnimatedIconButton(
@@ -635,16 +692,28 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   ref.read(audioPlayerProvider.notifier).togglePlayPause(),
             ),
             const SizedBox(width: 12),
-            _AnimatedIconButton(
-              tooltip: 'Siguiente',
-              icon: Icon(
-                Icons.skip_next,
-                color: Colors.white,
-                size: skipIconSize,
-              ),
+            GestureDetector(
               onTap: hasNext
                   ? () => ref.read(audioPlayerProvider.notifier).skipToNext()
                   : null,
+              onLongPressStart: hasNext
+                  ? (_) => ref
+                        .read(audioPlayerProvider.notifier)
+                        .startFastForward()
+                  : null,
+              onLongPressEnd: hasNext
+                  ? (_) =>
+                        ref.read(audioPlayerProvider.notifier).stopFastForward()
+                  : null,
+              child: _AnimatedIconButton(
+                tooltip: 'Siguiente',
+                icon: Icon(
+                  Icons.skip_next,
+                  color: Colors.white,
+                  size: skipIconSize,
+                ),
+                onTap: null,
+              ),
             ),
           ],
         ),
@@ -920,9 +989,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           child: ClipRRect(
             borderRadius: BorderRadius.circular(16),
             child: TrackArtwork(
+              key: ValueKey(itemTrack.id),
               trackId: itemTrack.id,
               size: isLandscape ? 200 : 300,
               borderRadius: 16,
+              filterQuality: FilterQuality.high,
             ),
           ),
         );
@@ -938,6 +1009,50 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       ),
       child: const Center(
         child: Icon(Icons.music_note, color: Colors.white24, size: 80),
+      ),
+    );
+  }
+}
+
+class _SeekIndicator extends StatelessWidget {
+  final bool isForward;
+
+  const _SeekIndicator({required this.isForward});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.5),
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+            blurRadius: 20,
+            spreadRadius: 5,
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isForward ? Icons.fast_forward_rounded : Icons.fast_rewind_rounded,
+            color: Colors.white,
+            size: 48,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            isForward ? 'FAST FORWARD' : 'REWIND',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 2,
+            ),
+          ),
+        ],
       ),
     );
   }

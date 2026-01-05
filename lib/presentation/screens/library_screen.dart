@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:math' as math;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/audio_player_provider.dart';
 import '../providers/library_view_model.dart';
@@ -14,6 +15,7 @@ import 'entity_detail_screen.dart';
 import 'player_screen.dart';
 import '../widgets/app_sidebar.dart';
 import '../widgets/track_contextual_menu.dart';
+import '../delegates/library_search_delegate.dart';
 
 class LibraryScreen extends ConsumerWidget {
   const LibraryScreen({super.key});
@@ -77,6 +79,16 @@ class LibraryScreen extends ConsumerWidget {
                     ref.read(isGridViewProvider.notifier).state = !isGrid;
                   },
                   tooltip: isGrid ? 'Vista lista' : 'Vista cuadrícula',
+                ),
+                IconButton(
+                  icon: const Icon(Icons.search_rounded),
+                  onPressed: () {
+                    showSearch(
+                      context: context,
+                      delegate: LibrarySearchDelegate(ref),
+                    );
+                  },
+                  tooltip: 'Buscar',
                 ),
                 IconButton(
                   icon: const Icon(Icons.refresh_rounded),
@@ -145,6 +157,11 @@ class LibraryScreen extends ConsumerWidget {
       return _buildFullscreenScanningState(context, state);
     }
 
+    // Obtener track actual para resaltar
+    final currentTrack = ref.watch(
+      audioPlayerProvider.select((s) => s.currentTrack),
+    );
+
     return ListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       itemCount: tracks.length + 1,
@@ -157,33 +174,90 @@ class LibraryScreen extends ConsumerWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   // Shuffle icon + label
-                  GestureDetector(
-                    onTap: () {
-                      ref
-                          .read(audioPlayerProvider.notifier)
-                          .loadPlaylist(tracks, 0, startShuffled: true);
-                      Navigator.push(
+                  // Shuffle button with visual feedback
+                  Consumer(
+                    builder: (context, ref, _) {
+                      final isShuffleActive = ref.watch(
+                        audioPlayerProvider.select((s) => s.shuffleMode),
+                      );
+                      final primaryColor = Theme.of(
                         context,
-                        MaterialPageRoute(
-                          builder: (context) => const PlayerScreen(),
+                      ).colorScheme.primary;
+
+                      return Material(
+                        color: isShuffleActive
+                            ? primaryColor.withValues(alpha: 0.15)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(12),
+                        child: InkWell(
+                          onTap: () {
+                            final notifier = ref.read(
+                              audioPlayerProvider.notifier,
+                            );
+                            int shuffleStartIdx = 0;
+                            if (tracks.length > 1) {
+                              shuffleStartIdx = math.Random().nextInt(
+                                tracks.length,
+                              );
+                            }
+                            final startTrack = tracks[shuffleStartIdx];
+
+                            notifier.loadPlaylist(
+                              tracks,
+                              shuffleStartIdx,
+                              startShuffled: true,
+                            );
+
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Reproducción Aleatoria Activa desde ${startTrack.title}',
+                                ),
+                                backgroundColor: primaryColor,
+                                duration: const Duration(seconds: 2),
+                              ),
+                            );
+
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const PlayerScreen(),
+                              ),
+                            );
+                          },
+                          borderRadius: BorderRadius.circular(12),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.shuffle,
+                                  color: isShuffleActive
+                                      ? primaryColor
+                                      : Colors.white,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'REPRODUCCIÓN ALEATORIA',
+                                  style: TextStyle(
+                                    color: isShuffleActive
+                                        ? primaryColor
+                                        : Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 1.2,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                       );
                     },
-                    child: const Row(
-                      children: [
-                        Icon(Icons.shuffle, color: Colors.white, size: 20),
-                        SizedBox(width: 8),
-                        Text(
-                          'REPRODUCCIÓN ALEATORIA',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1.2,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
-                    ),
                   ),
 
                   // Ordenar icono con combo desplegable
@@ -319,35 +393,91 @@ class LibraryScreen extends ConsumerWidget {
         }
 
         final track = tracks[index - 1];
-        return ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: Hero(
-            tag: 'artwork_${track.id}',
-            child: TrackArtwork(trackId: track.id, size: 50, borderRadius: 4),
+        final isActive = currentTrack?.id == track.id;
+        final primaryColor = Theme.of(context).colorScheme.primary;
+
+        return Container(
+          decoration: BoxDecoration(
+            color: isActive
+                ? primaryColor.withValues(alpha: 0.15)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+            border: isActive
+                ? Border.all(
+                    color: primaryColor.withValues(alpha: 0.3),
+                    width: 1,
+                  )
+                : null,
           ),
-          title: Text(
-            track.title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+          margin: const EdgeInsets.only(bottom: 4),
+          child: ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+            leading: Hero(
+              tag: 'artwork_${track.id}',
+              child: Stack(
+                children: [
+                  TrackArtwork(trackId: track.id, size: 50, borderRadius: 4),
+                  if (!isActive)
+                    Positioned.fill(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Icon(
+                          Icons.play_arrow_rounded,
+                          color: Colors.white.withValues(alpha: 0.7),
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            title: Row(
+              children: [
+                if (isActive) ...[
+                  Icon(Icons.play_arrow_rounded, size: 18, color: primaryColor),
+                  const SizedBox(width: 4),
+                ],
+                Expanded(
+                  child: Text(
+                    track.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
+                      color: isActive
+                          ? primaryColor
+                          : Colors.white.withValues(alpha: 0.9),
+                      fontSize: 15,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            subtitle: Text(
+              track.artist ?? 'Desconocido',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: isActive ? primaryColor.withValues(alpha: 0.8) : null,
+              ),
+            ),
+            trailing: _buildPlaylistMenu(context, ref, track, icons),
+            onTap: () {
+              ref
+                  .read(audioPlayerProvider.notifier)
+                  .playTrackManually(tracks, index - 1);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const PlayerScreen()),
+              );
+            },
+            onLongPress: () {
+              TrackContextualMenu.show(context, ref, track, tracks);
+            },
           ),
-          subtitle: Text(
-            track.artist ?? 'Desconocido',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          trailing: _buildPlaylistMenu(context, ref, track, icons),
-          onTap: () {
-            ref
-                .read(audioPlayerProvider.notifier)
-                .playTrackManually(tracks, index - 1);
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const PlayerScreen()),
-            );
-          },
-          onLongPress: () {
-            TrackContextualMenu.show(context, ref, track, tracks);
-          },
         );
       },
     );

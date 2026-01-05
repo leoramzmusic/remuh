@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/repositories/audio_repository_impl.dart';
 import '../../domain/entities/track.dart';
@@ -75,7 +77,6 @@ final scanTracksUseCaseProvider = Provider<ScanTracks>((ref) {
   return ScanTracks(repository);
 });
 
-/// Estado del reproductor
 class AudioPlayerState {
   final Track? currentTrack;
   final PlaybackState playbackState;
@@ -88,6 +89,9 @@ class AudioPlayerState {
   final List<int> shuffledIndices;
   final String? error;
   final String? playlistName;
+  final List<Track> originalQueue;
+  final bool isFastForwarding;
+  final bool isRewinding;
 
   const AudioPlayerState({
     this.currentTrack,
@@ -98,10 +102,16 @@ class AudioPlayerState {
     this.currentIndex = -1,
     this.repeatMode = AudioRepeatMode.off,
     this.shuffleMode = false,
-    this.shuffledIndices = const [],
+    this.shuffledIndices = const [], // Deprecated: keeping for compatibility
     this.error,
     this.playlistName,
+    this.originalQueue = const [],
+    this.isFastForwarding = false,
+    this.isRewinding = false,
   });
+
+  List<Track> get effectiveQueue => queue; // Order is now always physical
+  int get effectiveIndex => currentIndex;
 
   AudioPlayerState copyWith({
     Track? currentTrack,
@@ -115,6 +125,9 @@ class AudioPlayerState {
     List<int>? shuffledIndices,
     String? error,
     String? playlistName,
+    List<Track>? originalQueue,
+    bool? isFastForwarding,
+    bool? isRewinding,
   }) {
     return AudioPlayerState(
       currentTrack: currentTrack ?? this.currentTrack,
@@ -126,8 +139,11 @@ class AudioPlayerState {
       repeatMode: repeatMode ?? this.repeatMode,
       shuffleMode: shuffleMode ?? this.shuffleMode,
       shuffledIndices: shuffledIndices ?? this.shuffledIndices,
-      error: error,
+      error: error ?? this.error,
       playlistName: playlistName ?? this.playlistName,
+      originalQueue: originalQueue ?? this.originalQueue,
+      isFastForwarding: isFastForwarding ?? this.isFastForwarding,
+      isRewinding: isRewinding ?? this.isRewinding,
     );
   }
 
@@ -135,25 +151,6 @@ class AudioPlayerState {
   bool get isPaused => playbackState == PlaybackState.paused;
   bool get isBuffering => playbackState == PlaybackState.buffering;
   bool get hasError => error != null;
-
-  /// Retorna la cola en el orden efectivo de reproducción (lineal o mezclado)
-  List<Track> get effectiveQueue {
-    if (shuffleMode && shuffledIndices.isNotEmpty) {
-      return shuffledIndices
-          .where((index) => index < queue.length)
-          .map((index) => queue[index])
-          .toList();
-    }
-    return queue;
-  }
-
-  /// Retorna la posición del track actual dentro de la cola efectiva
-  int get effectiveIndex {
-    if (shuffleMode && shuffledIndices.isNotEmpty) {
-      return shuffledIndices.indexOf(currentIndex);
-    }
-    return currentIndex;
-  }
 
   bool get hasNext {
     if (queue.isEmpty) return false;
@@ -207,6 +204,81 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
       await _repository.setShuffleMode(shuffle);
     } catch (e) {
       Logger.error('Error restoring settings', e);
+    }
+  }
+
+  Timer? _seekTimer;
+  int _seekMultiplier = 1;
+  bool _wasPlayingBeforeSeek = false;
+
+  void startFastForward() {
+    if (_seekTimer != null) return;
+    _wasPlayingBeforeSeek = state.isPlaying;
+    _seekMultiplier = 1;
+    state = state.copyWith(isFastForwarding: true);
+
+    _seekTimer = Timer.periodic(const Duration(milliseconds: 200), (
+      timer,
+    ) async {
+      final currentPos = state.position;
+      final duration = state.duration ?? Duration.zero;
+      final jump = Duration(seconds: 1 * _seekMultiplier);
+
+      if (currentPos + jump >= duration) {
+        await seekTo(duration);
+        await _repository.pause();
+      } else {
+        await seekTo(currentPos + jump);
+        if (timer.tick % 5 == 0 && _seekMultiplier < 8) {
+          _seekMultiplier *= 2;
+        }
+      }
+    });
+  }
+
+  void stopFastForward() {
+    _seekTimer?.cancel();
+    _seekTimer = null;
+    state = state.copyWith(isFastForwarding: false);
+
+    if (state.position >= (state.duration ?? Duration.zero)) {
+      skipToNext();
+    } else if (_wasPlayingBeforeSeek) {
+      _repository.play();
+    }
+  }
+
+  void startRewind() {
+    if (_seekTimer != null) return;
+    _wasPlayingBeforeSeek = state.isPlaying;
+    _seekMultiplier = 1;
+    state = state.copyWith(isRewinding: true);
+
+    _seekTimer = Timer.periodic(const Duration(milliseconds: 200), (
+      timer,
+    ) async {
+      final currentPos = state.position;
+      final jump = Duration(seconds: 1 * _seekMultiplier);
+
+      if (currentPos <= jump) {
+        await seekTo(Duration.zero);
+        await _repository.pause();
+      } else {
+        await seekTo(currentPos - jump);
+        if (timer.tick % 5 == 0 && _seekMultiplier < 8) {
+          _seekMultiplier *= 2;
+        }
+      }
+    });
+  }
+
+  void stopRewind() {
+    _seekTimer?.cancel();
+    _seekTimer = null;
+    state = state.copyWith(isRewinding: false);
+
+    if (_wasPlayingBeforeSeek) {
+      _repository.play();
     }
   }
 
@@ -284,12 +356,13 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
       }
     });
 
-    // Escuchar peticiones de skip desde la notificación
-    _repository.skipRequestStream.listen((isNext) {
-      if (isNext) {
-        skipToNext();
-      } else {
-        skipToPrevious();
+    // Escuchar cambios de índice automáticos (gapless o skip manual en Handler)
+    _repository.indexChangeStream.listen((index) {
+      if (index >= 0 && index < state.queue.length) {
+        final track = state.queue[index];
+        if (state.currentTrack?.id != track.id) {
+          state = state.copyWith(currentIndex: index, currentTrack: track);
+        }
       }
     });
 
@@ -297,14 +370,14 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
     _repository.playbackStateStream.listen((playbackState) {
       state = state.copyWith(playbackState: playbackState);
 
-      // Auto-avance con nuestra lógica personalizada
+      // Auto-avance: ya no llamamos skipToNext() aquí si es gapless,
+      // just_audio avanza el índice y nosotros lo escuchamos arriba.
       if (playbackState == PlaybackState.completed) {
-        // Analytics: increment play count
+        // Increment play count only
         final currentTrackId = state.currentTrack?.id;
         if (currentTrackId != null) {
           _trackRepository.incrementPlayCount(currentTrackId);
         }
-        skipToNext();
       }
 
       _saveState(
@@ -349,30 +422,76 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
     }
   }
 
-  /// Cambiar modo aleatorio
   Future<void> toggleShuffle() async {
     try {
       final bool nextShuffle = !state.shuffleMode;
-      List<int> shuffledIndices = [];
+      List<Track> newQueue;
+      int newIndex;
 
-      if (nextShuffle && state.queue.isNotEmpty) {
-        // REGENERAR COLA: Cada vez que se activa shuffle, se crea un nuevo orden
-        shuffledIndices = List.generate(state.queue.length, (i) => i);
-        shuffledIndices.shuffle();
+      if (nextShuffle) {
+        // ACTIVAR SHUFFLE: Guardamos el orden original y mezclamos físicamente
+        final original = List<Track>.from(state.queue);
+        final shuffled = List<Track>.from(state.queue);
+        final current = state.currentTrack;
 
-        // Asegurarse de que el track actual esté al inicio para una transición fluida
-        if (state.currentIndex != -1) {
-          shuffledIndices.remove(state.currentIndex);
-          shuffledIndices.insert(0, state.currentIndex);
+        shuffled.shuffle();
+
+        // Mover el track actual al inicio para que no parezca un salto brusco
+        if (current != null) {
+          shuffled.removeWhere((t) => t.id == current.id);
+          shuffled.insert(0, current);
         }
 
-        Logger.info('Shuffle regenerated with ${shuffledIndices.length} items');
+        newQueue = shuffled;
+        newIndex = 0;
+
+        state = state.copyWith(
+          shuffleMode: true,
+          originalQueue: original,
+          queue: newQueue,
+          currentIndex: newIndex,
+        );
+      } else {
+        // DESACTIVAR SHUFFLE: Restauramos el orden original
+        newQueue = state.originalQueue.isNotEmpty
+            ? state.originalQueue
+            : state.queue;
+
+        newIndex = newQueue.indexWhere((t) => t.id == state.currentTrack?.id);
+        if (newIndex == -1) newIndex = 0;
+
+        state = state.copyWith(
+          shuffleMode: false,
+          originalQueue: [],
+          queue: newQueue,
+          currentIndex: newIndex,
+        );
       }
 
-      state = state.copyWith(
-        shuffleMode: nextShuffle,
-        shuffledIndices: shuffledIndices,
+      // Sincronizar con el motor: siempre lineal
+      await _repository.setShuffleMode(false);
+      await _repository.updateQueue(
+        state.queue,
+        initialIndex: state.currentIndex,
       );
+
+      // Asegurarse de que el motor sepa que estamos en el track correcto
+      // Importante: No llamamos a loadTrack(track) porque eso reinicia la pista.
+      // Solo actualizamos el índice en el motor si es necesario.
+      // just_audio ConcatenatingAudioSource mantiene la posición si solo cambiamos el índice?
+      // En realidad, al hacer updateQueue (clear + addAll), el player se resetea.
+      // Para mantener la posición, necesitamos restaurarla.
+      final currentPosition = state.position;
+      final track = state.currentTrack;
+      if (track != null) {
+        await _repository.loadTrack(track);
+        if (currentPosition > Duration.zero) {
+          await _repository.seek(currentPosition);
+        }
+        if (state.isPlaying) {
+          await _repository.play();
+        }
+      }
     } catch (e) {
       Logger.error('Error toggling shuffle', e);
     }
@@ -393,41 +512,75 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
     if (tracks.isEmpty) return;
 
     try {
-      int playIndex = initialIndex;
-      List<int> shuffledIndices = [];
-
       if (startShuffled) {
-        shuffledIndices = List.generate(tracks.length, (i) => i);
-        shuffledIndices.shuffle();
-        // Si empezamos mezclado, el primer track es el primero de la mezcla
-        playIndex = shuffledIndices[0];
+        int finalInitialIndex = initialIndex;
+        // Si arrancamos aleatorio desde el "botón general" (index 0),
+        // elegir una canción al azar para que no siempre empiece la misma.
+        if (initialIndex == 0 && tracks.length > 1) {
+          final randomIndex = math.Random().nextInt(tracks.length);
+          finalInitialIndex = randomIndex;
+        }
+
+        final shuffled = List<Track>.from(tracks);
+        final initialTrack = tracks[finalInitialIndex];
+
+        shuffled.shuffle();
+
+        // Mover el track inicial al principio para que empiece YA
+        shuffled.removeWhere((t) => t.id == initialTrack.id);
+        shuffled.insert(0, initialTrack);
+
+        state = state.copyWith(
+          queue: shuffled,
+          currentIndex: 0,
+          currentTrack: initialTrack,
+          shuffleMode: true,
+          originalQueue: tracks,
+          error: null,
+          playlistName: playlistName,
+        );
+      } else {
+        // MODO ORDENADO: Respetamos el índice inicial y toda la lista
+        state = state.copyWith(
+          queue: tracks,
+          currentIndex: initialIndex,
+          currentTrack: tracks[initialIndex],
+          shuffleMode: false,
+          originalQueue: [],
+          error: null,
+          playlistName: playlistName,
+        );
       }
 
-      final track = tracks[playIndex];
-      Logger.info('Loading playlist: $playlistName at index $playIndex');
-
-      state = state.copyWith(
-        queue: tracks,
-        currentIndex: playIndex,
-        shuffleMode: startShuffled,
-        shuffledIndices: shuffledIndices,
-        error: null,
-        playlistName: playlistName,
+      // Sincronizar cola física con el motor (siempre lineal)
+      await _repository.setShuffleMode(false);
+      await _repository.updateQueue(
+        state.queue,
+        initialIndex: state.currentIndex,
       );
 
-      await _loadTrack(track);
-      state = state.copyWith(currentTrack: track);
-      await _playAudio();
+      // FORZAR el inicio en el track seleccionado
+      final trackToPlay = state.currentTrack;
+      if (trackToPlay != null) {
+        // loadTrack en nuestro handler ya incluye skipToQueueItem si está en la cola
+        await _repository.loadTrack(trackToPlay);
+      }
+
+      await _repository.play();
     } catch (e) {
       Logger.error('Error loading playlist', e);
       state = state.copyWith(error: e.toString());
     }
   }
 
-  /// Seleccionar canción manualmente (vuelve a modo normal)
+  /// Seleccionar canción manualmente (respeta modo aleatorio si está activo)
   Future<void> playTrackManually(List<Track> contextTracks, int index) async {
-    // AL SELECCIONAR MANUALMENTE: La cola vuelve a modo normal desde esa canción
-    await loadPlaylist(contextTracks, index, startShuffled: false);
+    // AL SELECCIONAR MANUALMENTE: Respetamos el modo actual
+    if (state.shuffleMode) {
+      await loadPlaylist(contextTracks, index, startShuffled: true);
+    } else {
+      await loadPlaylist(contextTracks, index, startShuffled: false);
+    }
   }
 
   /// Saltar a la siguiente pista
@@ -436,33 +589,23 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
       if (state.queue.isEmpty) return;
 
       int nextIndex = -1;
-
-      if (state.shuffleMode && state.shuffledIndices.isNotEmpty) {
-        final currentPos = state.shuffledIndices.indexOf(state.currentIndex);
-        if (currentPos != -1 && currentPos < state.shuffledIndices.length - 1) {
-          nextIndex = state.shuffledIndices[currentPos + 1];
-        } else if (state.repeatMode == AudioRepeatMode.all) {
-          nextIndex = state.shuffledIndices[0];
-        }
-      } else {
-        if (state.currentIndex < state.queue.length - 1) {
-          nextIndex = state.currentIndex + 1;
-        } else if (state.repeatMode == AudioRepeatMode.all) {
-          nextIndex = 0;
-        }
+      if (state.currentIndex < state.queue.length - 1) {
+        nextIndex = state.currentIndex + 1;
+      } else if (state.repeatMode == AudioRepeatMode.all) {
+        nextIndex = 0;
       }
 
       if (nextIndex != -1) {
         final nextTrack = state.queue[nextIndex];
         Logger.info('Skipping to next: ${nextTrack.title}');
 
-        // Update state immediately so UI can react and show new metadata/artwork
+        // El estado se actualizará por indexChangeStream, pero forzamos para UI
         state = state.copyWith(
           currentIndex: nextIndex,
           currentTrack: nextTrack,
         );
 
-        await _loadTrack(nextTrack);
+        await _repository.loadTrack(nextTrack);
         await _playAudio();
       }
     } catch (e) {
@@ -480,36 +623,26 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
       if (state.queue.isEmpty) return;
 
       int prevIndex = -1;
-
-      if (state.shuffleMode && state.shuffledIndices.isNotEmpty) {
-        final currentPos = state.shuffledIndices.indexOf(state.currentIndex);
-        if (currentPos > 0) {
-          prevIndex = state.shuffledIndices[currentPos - 1];
-        } else if (state.repeatMode == AudioRepeatMode.all) {
-          prevIndex = state.shuffledIndices.last;
-        }
-      } else {
-        if (state.currentIndex > 0) {
-          prevIndex = state.currentIndex - 1;
-        } else if (state.repeatMode == AudioRepeatMode.all) {
-          prevIndex = state.queue.length - 1;
-        }
+      if (state.currentIndex > 0) {
+        prevIndex = state.currentIndex - 1;
+      } else if (state.repeatMode == AudioRepeatMode.all) {
+        prevIndex = state.queue.length - 1;
       }
 
       if (prevIndex != -1) {
         final prevTrack = state.queue[prevIndex];
         Logger.info('Skipping to previous: ${prevTrack.title}');
 
-        // Update state immediately so UI can react and show new metadata/artwork
         state = state.copyWith(
           currentIndex: prevIndex,
           currentTrack: prevTrack,
         );
 
-        await _loadTrack(prevTrack);
+        await _repository.loadTrack(prevTrack);
         await _playAudio();
       } else {
-        await seekTo(Duration.zero);
+        await _repository.seek(Duration.zero);
+        await _playAudio();
       }
     } catch (e) {
       Logger.error('Error skipping to previous', e);
