@@ -67,11 +67,14 @@ class Track {
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
 
-    return other is Track && other.id == id;
+    return other is Track &&
+        other.id == id &&
+        other.isFavorite == isFavorite &&
+        other.artworkPath == artworkPath;
   }
 
   @override
-  int get hashCode => id.hashCode;
+  int get hashCode => Object.hash(id, isFavorite, artworkPath);
 
   @override
   String toString() => 'Track(id: $id, title: $title, artist: $artist)';

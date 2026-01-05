@@ -412,27 +412,49 @@ class LibraryScreen extends ConsumerWidget {
           margin: const EdgeInsets.only(bottom: 4),
           child: ListTile(
             contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-            leading: Hero(
-              tag: 'artwork_${track.id}',
-              child: Stack(
-                children: [
-                  TrackArtwork(trackId: track.id, size: 50, borderRadius: 4),
-                  if (!isActive)
-                    Positioned.fill(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Icon(
-                          Icons.play_arrow_rounded,
-                          color: Colors.white.withValues(alpha: 0.7),
-                          size: 20,
-                        ),
-                      ),
+            leading: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: 32,
+                  child: Text(
+                    '#$index',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isActive ? primaryColor : Colors.white38,
+                      fontWeight: isActive
+                          ? FontWeight.bold
+                          : FontWeight.normal,
                     ),
-                ],
-              ),
+                  ),
+                ),
+                Hero(
+                  tag: 'artwork_${track.id}',
+                  child: Stack(
+                    children: [
+                      TrackArtwork(
+                        trackId: track.id,
+                        size: 50,
+                        borderRadius: 4,
+                      ),
+                      if (!isActive)
+                        Positioned.fill(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Icon(
+                              Icons.play_arrow_rounded,
+                              color: Colors.white.withValues(alpha: 0.7),
+                              size: 20,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
             ),
             title: Row(
               children: [

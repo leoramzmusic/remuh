@@ -63,6 +63,17 @@ class QueueItemTile extends ConsumerWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
+                SizedBox(
+                  width: 32,
+                  child: Text(
+                    '#${displayIndex + 1}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: colorScheme.primary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
                 // Artwork
                 SizedBox(
                   width: 48,
@@ -121,15 +132,27 @@ class QueueItemTile extends ConsumerWidget {
 
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      leading: SizedBox(
-        width: 48,
-        height: 48,
-        child: TrackArtwork(
-          trackId: track.id,
-          size: 48,
-          borderRadius: 8,
-          placeholderIcon: icons.lyrics,
-        ),
+      leading: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 32,
+            child: Text(
+              '#${displayIndex + 1}',
+              style: const TextStyle(fontSize: 12, color: Colors.white38),
+            ),
+          ),
+          SizedBox(
+            width: 48,
+            height: 48,
+            child: TrackArtwork(
+              trackId: track.id,
+              size: 48,
+              borderRadius: 8,
+              placeholderIcon: icons.lyrics,
+            ),
+          ),
+        ],
       ),
       title: Text(track.title, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Text(

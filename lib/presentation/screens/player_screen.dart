@@ -75,6 +75,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final shuffleMode = ref.watch(
       audioPlayerProvider.select((s) => s.shuffleMode),
     );
+    final position = ref.watch(audioPlayerProvider.select((s) => s.position));
+    final duration = ref.watch(audioPlayerProvider.select((s) => s.duration));
 
     final isLandscape =
         MediaQuery.of(context).orientation == Orientation.landscape;
@@ -145,6 +147,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                             hasPrevious,
                             repeatMode,
                             shuffleMode,
+                            position,
+                            duration,
                           )
                         : _buildMiddleSection(
                             context,
@@ -156,6 +160,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                             hasPrevious,
                             repeatMode,
                             shuffleMode,
+                            position,
+                            duration,
                           ),
                   ),
                   if (!isLandscape) _buildBottomBar(context, displayedTrack),
@@ -170,9 +176,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       // Barrier (Tap to close)
                       GestureDetector(
                         onTap: () => setState(() => _showLyrics = false),
-                        child: Container(
-                          color: Colors.black.withValues(alpha: 0.3),
-                        ),
+                        child: Container(color: Colors.black.withOpacity(0.3)),
                       ),
                       // Draggable Sheet
                       TweenAnimationBuilder<double>(
@@ -214,17 +218,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                     decoration: BoxDecoration(
                                       color: Theme.of(context)
                                           .scaffoldBackgroundColor
-                                          .withValues(
-                                            alpha: 0.5,
-                                          ), // Semi-transparent
+                                          .withOpacity(0.5), // Semi-transparent
                                       borderRadius: const BorderRadius.vertical(
                                         top: Radius.circular(24),
                                       ),
                                       boxShadow: [
                                         BoxShadow(
-                                          color: Colors.black.withValues(
-                                            alpha: 0.3,
-                                          ),
+                                          color: Colors.black.withOpacity(0.3),
                                           blurRadius: 20,
                                           spreadRadius: 5,
                                         ),
@@ -287,9 +287,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       // Barrier
                       GestureDetector(
                         onTap: () => setState(() => _showQueue = false),
-                        child: Container(
-                          color: Colors.black.withValues(alpha: 0.3),
-                        ),
+                        child: Container(color: Colors.black.withOpacity(0.3)),
                       ),
                       // Pull-up Sheet
                       NotificationListener<DraggableScrollableNotification>(
@@ -444,135 +442,141 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     bool hasPrevious,
     AudioRepeatMode repeatMode,
     bool shuffleMode,
+    Duration position,
+    Duration? duration,
   ) {
     return LayoutBuilder(
       builder: (context, constraints) {
         // Adjust spacing and sizes based on available height
         final double maxHeight = constraints.maxHeight;
         final bool isSmallScreen = maxHeight < 600;
-        final isDraggingSlider = ref.watch(sliderDraggingProvider);
 
-        return SingleChildScrollView(
-          physics: isDraggingSlider
-              ? const NeverScrollableScrollPhysics()
-              : const BouncingScrollPhysics(),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: maxHeight),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 16.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Album Art
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                    child: SizedBox(
-                      // Adaptive size: use 80% width but cap it based on height
-                      height:
-                          (isSmallScreen
-                                  ? maxHeight * 0.4
-                                  : MediaQuery.of(context).size.width * 0.8)
-                              .clamp(150.0, 400.0),
-                      width:
-                          (isSmallScreen
-                                  ? maxHeight * 0.4
-                                  : MediaQuery.of(context).size.width * 0.8)
-                              .clamp(150.0, 400.0),
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          _buildAlbumCover(
-                            displayedTrack,
-                            queue,
-                            currentIndex,
-                            false,
-                            heroTag: displayedTrack != null
-                                ? 'art_${displayedTrack.id}'
-                                : null,
-                          ),
-                          if (ref.watch(
-                            audioPlayerProvider.select(
-                              (s) => s.isFastForwarding,
-                            ),
-                          ))
-                            const _SeekIndicator(isForward: true),
-                          if (ref.watch(
-                            audioPlayerProvider.select((s) => s.isRewinding),
-                          ))
-                            const _SeekIndicator(isForward: false),
-                        ],
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              // Album Art
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                child: SizedBox(
+                  // Adaptive size: use 70% width but cap it based on height
+                  height:
+                      (isSmallScreen
+                              ? maxHeight * 0.4
+                              : MediaQuery.of(context).size.width * 0.7)
+                          .clamp(150.0, 380.0),
+                  width:
+                      (isSmallScreen
+                              ? maxHeight * 0.4
+                              : MediaQuery.of(context).size.width * 0.7)
+                          .clamp(150.0, 380.0),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      _buildAlbumCover(
+                        displayedTrack,
+                        queue,
+                        currentIndex,
+                        false,
+                        position,
+                        duration,
+                        heroTag: displayedTrack != null
+                            ? 'art_${displayedTrack.id}'
+                            : null,
                       ),
-                    ),
+                      if (ref.watch(
+                        audioPlayerProvider.select((s) => s.isFastForwarding),
+                      ))
+                        const _SeekIndicator(isForward: true),
+                      if (ref.watch(
+                        audioPlayerProvider.select((s) => s.isRewinding),
+                      ))
+                        const _SeekIndicator(isForward: false),
+                    ],
                   ),
-
-                  SizedBox(height: isSmallScreen ? 16 : 24),
-
-                  // Song Info
-                  _buildSongInfo(displayedTrack),
-
-                  SizedBox(height: isSmallScreen ? 16 : 28),
-
-                  // Element Scaling/Fading Animation
-                  AnimatedBuilder(
-                    animation:
-                        ModalRoute.of(context)?.animation ??
-                        kAlwaysCompleteAnimation,
-                    builder: (context, child) {
-                      final animation =
-                          ModalRoute.of(context)?.animation ??
-                          kAlwaysCompleteAnimation;
-                      // Elements fade out faster than they slide
-                      final fadeValue = Curves.easeInQuint.transform(
-                        (1.0 - animation.value).clamp(0.0, 1.0),
-                      );
-                      final opacity = 1.0 - fadeValue;
-                      final scale = 1.0 - (fadeValue * 0.1);
-
-                      return Opacity(
-                        opacity: opacity,
-                        child: Transform.scale(scale: scale, child: child),
-                      );
-                    },
-                    child: Column(
-                      children: [
-                        // Playback Controls
-                        _buildPlaybackControls(
-                          context,
-                          isPlaying,
-                          hasNext,
-                          hasPrevious,
-                          repeatMode,
-                          shuffleMode,
-                          compact: isSmallScreen,
-                        ),
-
-                        SizedBox(height: isSmallScreen ? 12 : 20),
-
-                        // Progress Bar
-                        const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 24.0),
-                          child: ProgressBar(),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
+
+              SizedBox(height: isSmallScreen ? 12 : 16),
+
+              // Song Info
+              _buildSongInfo(
+                displayedTrack,
+                queue.length,
+                currentIndex,
+                isLandscape: false,
+              ),
+
+              SizedBox(height: isSmallScreen ? 12 : 16),
+
+              // Element Scaling/Fading Animation
+              AnimatedBuilder(
+                animation:
+                    ModalRoute.of(context)?.animation ??
+                    kAlwaysCompleteAnimation,
+                builder: (context, child) {
+                  final animation =
+                      ModalRoute.of(context)?.animation ??
+                      kAlwaysCompleteAnimation;
+                  // Elements fade out faster than they slide
+                  final fadeValue = Curves.easeInQuint.transform(
+                    (1.0 - animation.value).clamp(0.0, 1.0),
+                  );
+                  final opacity = 1.0 - fadeValue;
+                  final scale = 1.0 - (fadeValue * 0.1);
+
+                  return Opacity(
+                    opacity: opacity,
+                    child: Transform.scale(scale: scale, child: child),
+                  );
+                },
+                child: Column(
+                  children: [
+                    // Progress Bar
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 24.0),
+                      child: ProgressBar(),
+                    ),
+
+                    SizedBox(height: isSmallScreen ? 8 : 12),
+
+                    // Playback Controls
+                    _buildPlaybackControls(
+                      context,
+                      isPlaying,
+                      hasNext,
+                      hasPrevious,
+                      repeatMode,
+                      shuffleMode,
+                      compact: isSmallScreen,
+                      isLandscape: false,
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         );
       },
     );
   }
 
-  Widget _buildSongInfo(Track? track) {
+  Widget _buildSongInfo(
+    Track? track,
+    int totalSongs,
+    int currentIndex, {
+    bool isLandscape = false,
+  }) {
+    final remaining = totalSongs > 0 ? totalSongs - currentIndex - 1 : 0;
     final shuffleMode = ref.watch(
       audioPlayerProvider.select((s) => s.shuffleMode),
     );
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32.0),
+      padding: EdgeInsets.symmetric(horizontal: isLandscape ? 16.0 : 32.0),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           // Mode Indicator
           Container(
@@ -597,7 +601,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: isLandscape ? 8 : 16),
           Row(
             children: [
               // Placeholder for symmetry
@@ -606,6 +610,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               ),
               Expanded(
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     AnimatedSwitcher(
                       duration: const Duration(milliseconds: 300),
@@ -614,16 +619,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         child: MarqueeText(
                           key: ValueKey('title_${track?.id ?? 'none'}'),
                           text: track?.title ?? 'No Track Playing',
-                          style: const TextStyle(
-                            fontSize: 24,
+                          style: TextStyle(
+                            fontSize: isLandscape ? 20 : 24,
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
                           ),
-                          height: 32,
+                          height: isLandscape ? 26 : 32,
                         ),
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: isLandscape ? 4 : 8),
                     AnimatedSwitcher(
                       duration: const Duration(milliseconds: 300),
                       transitionBuilder:
@@ -636,13 +641,39 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       child: MarqueeText(
                         key: ValueKey('artist_${track?.id ?? 'none'}'),
                         text: track?.artist ?? 'Unknown Artist',
-                        style: const TextStyle(
-                          fontSize: 18,
+                        style: TextStyle(
+                          fontSize: isLandscape ? 16 : 18,
                           color: Colors.white60,
                         ),
-                        height: 24,
+                        height: isLandscape ? 20 : 24,
                       ),
                     ),
+                    if (track != null) ...[
+                      SizedBox(height: isLandscape ? 8 : 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.05),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              'Reproduciendo ${currentIndex + 1} de $totalSongs',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Colors.white70,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -681,13 +712,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     AudioRepeatMode repeatMode,
     bool shuffleMode, {
     bool compact = false,
+    bool isLandscape = false,
   }) {
     // Determine sizes based on screen and button type
-    final double sideIconSize = compact
-        ? 16
-        : 20; // Repetir, Aleatorio, Temporizador, Ecualizador
-    final double skipIconSize = compact ? 40 : 44; // Anterior y Siguiente
-    final double playPauseSize = compact ? 72 : 80; // Play/Pause dominante
+    final double sideIconSize = isLandscape ? 18 : (compact ? 16 : 20);
+    final double skipIconSize = isLandscape ? 36 : (compact ? 40 : 44);
+    final double playPauseSize = isLandscape ? 60 : (compact ? 72 : 80);
 
     final eqEnabled = ref.watch(equalizerProvider.select((s) => s.isEnabled));
     final sleepTimerState = ref.watch(sleepTimerProvider);
@@ -723,12 +753,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                             : Colors.white.withValues(alpha: 0.4),
                       ),
                     ),
-                    onTap: () {
-                      ref.read(audioPlayerProvider.notifier).toggleRepeatMode();
-                      final newMode = ref.read(audioPlayerProvider).repeatMode;
+                    onTap: () async {
+                      final newMode = await ref
+                          .read(audioPlayerProvider.notifier)
+                          .toggleRepeatMode();
+                      if (!context.mounted) return;
                       final message = switch (newMode) {
                         AudioRepeatMode.all => 'Repetición de lista activada',
-                        AudioRepeatMode.one => 'Repetición de canción activada',
+                        AudioRepeatMode.one => 'Repetición activada',
                         AudioRepeatMode.off => 'Repetición desactivada',
                       };
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -750,7 +782,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   child: _AnimatedIconButton(
                     tooltip: 'Aleatorio',
                     pressedScale: 0.8,
-                    rotateAngle: 0.3 * math.pi,
                     icon: ShuffleIndicator(
                       isActive: shuffleMode,
                       size: sideIconSize,
@@ -923,13 +954,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     bool hasPrevious,
     AudioRepeatMode repeatMode,
     bool shuffleMode,
+    Duration position,
+    Duration? duration,
   ) {
     return SafeArea(
       child: Column(
         children: [
           // Landscape Top Bar
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -967,8 +1000,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(
-                horizontal: 43.0,
-                vertical: 12.0,
+                horizontal: 32.0,
+                vertical: 4.0,
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -984,6 +1017,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           queue,
                           currentIndex,
                           true,
+                          position,
+                          duration,
                         ),
                       ),
                     ),
@@ -992,25 +1027,35 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   // Right Column: Controls and Info (Flex 6)
                   Expanded(
                     flex: 6,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        _buildSongInfo(displayedTrack),
-                        const SizedBox(height: 16),
-                        const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16.0),
-                          child: ProgressBar(),
+                    child: Center(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            _buildSongInfo(
+                              displayedTrack,
+                              queue.length,
+                              currentIndex,
+                              isLandscape: true,
+                            ),
+                            const SizedBox(height: 8),
+                            const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 16.0),
+                              child: ProgressBar(),
+                            ),
+                            const SizedBox(height: 8),
+                            _buildPlaybackControls(
+                              context,
+                              isPlaying,
+                              hasNext,
+                              hasPrevious,
+                              repeatMode,
+                              shuffleMode,
+                              isLandscape: true,
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 24),
-                        _buildPlaybackControls(
-                          context,
-                          isPlaying,
-                          hasNext,
-                          hasPrevious,
-                          repeatMode,
-                          shuffleMode,
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                 ],
@@ -1089,7 +1134,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     Track? track,
     List<Track> queue,
     int currentIndex,
-    bool isLandscape, {
+    bool isLandscape,
+    Duration position,
+    Duration? duration, {
     String? heroTag,
   }) {
     if (track == null) {

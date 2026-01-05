@@ -247,8 +247,7 @@ class AudioRepositoryImpl implements AudioRepository {
   Stream<Duration> get positionStream => _audioHandler.positionStream;
 
   @override
-  Stream<Duration?> get durationStream =>
-      _audioHandler.mediaItem.map((item) => item?.duration);
+  Stream<Duration?> get durationStream => _audioHandler.durationStream;
 
   @override
   Track? get currentTrack {

@@ -4,6 +4,7 @@ import '../providers/audio_player_provider.dart';
 import '../widgets/track_artwork.dart';
 import '../screens/player_screen.dart';
 import '../core/animations/player_route.dart';
+import '../providers/library_view_model.dart';
 
 import '../../core/services/color_extraction_service.dart';
 
@@ -141,7 +142,12 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                 ],
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 8),
+            // Favorite button
+            _MiniPlayerFavoriteButton(
+              trackId: currentTrack.id,
+              backgroundColors: _backgroundColors,
+            ),
             // Play/Pause button
             IconButton(
               icon: Icon(
@@ -175,6 +181,77 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _MiniPlayerFavoriteButton extends ConsumerStatefulWidget {
+  final String trackId;
+  final List<Color>? backgroundColors;
+
+  const _MiniPlayerFavoriteButton({
+    required this.trackId,
+    this.backgroundColors,
+  });
+
+  @override
+  ConsumerState<_MiniPlayerFavoriteButton> createState() =>
+      _MiniPlayerFavoriteButtonState();
+}
+
+class _MiniPlayerFavoriteButtonState
+    extends ConsumerState<_MiniPlayerFavoriteButton>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 200),
+      vsync: this,
+    );
+    _scaleAnimation = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.2), weight: 50),
+      TweenSequenceItem(tween: Tween(begin: 1.2, end: 1.0), weight: 50),
+    ]).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final track = ref.watch(
+      libraryViewModelProvider.select(
+        (s) => s.tracks.firstWhere((t) => t.id == widget.trackId),
+      ),
+    );
+    final isFavorite = track.isFavorite;
+
+    return ScaleTransition(
+      scale: _scaleAnimation,
+      child: IconButton(
+        icon: Icon(
+          isFavorite ? Icons.favorite : Icons.favorite_border_rounded,
+          size: 24,
+          color: isFavorite
+              ? Colors.redAccent
+              : (widget.backgroundColors != null ? Colors.white70 : null),
+        ),
+        onPressed: () {
+          if (!isFavorite) {
+            _controller.forward(from: 0.0);
+          }
+          ref
+              .read(libraryViewModelProvider.notifier)
+              .toggleFavorite(widget.trackId);
+        },
       ),
     );
   }

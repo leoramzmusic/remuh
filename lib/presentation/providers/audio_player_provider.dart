@@ -446,19 +446,16 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
   }
 
   /// Cambiar modo de repetición
-  Future<void> toggleRepeatMode() async {
+  Future<AudioRepeatMode> toggleRepeatMode() async {
     final nextMode = switch (state.repeatMode) {
       AudioRepeatMode.off => AudioRepeatMode.all,
       AudioRepeatMode.all => AudioRepeatMode.one,
       AudioRepeatMode.one => AudioRepeatMode.off,
     };
-
-    try {
-      await _repository.setRepeatMode(nextMode);
-      state = state.copyWith(repeatMode: nextMode);
-    } catch (e) {
-      Logger.error('Error toggling repeat mode', e);
-    }
+    state = state.copyWith(repeatMode: nextMode);
+    await _repository.setRepeatMode(nextMode);
+    await _saveState(force: true);
+    return nextMode;
   }
 
   Future<void> toggleShuffle() async {

@@ -117,13 +117,28 @@ class EntityDetailScreen extends ConsumerWidget {
 
                 final track = tracks[index - 1];
                 return ListTile(
-                  leading: Hero(
-                    tag: 'artwork_${track.id}',
-                    child: TrackArtwork(
-                      trackId: track.id,
-                      size: 50,
-                      borderRadius: 4,
-                    ),
+                  leading: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 32,
+                        child: Text(
+                          '#$index',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.white38,
+                          ),
+                        ),
+                      ),
+                      Hero(
+                        tag: 'artwork_${track.id}',
+                        child: TrackArtwork(
+                          trackId: track.id,
+                          size: 50,
+                          borderRadius: 4,
+                        ),
+                      ),
+                    ],
                   ),
                   title: Text(
                     track.title,

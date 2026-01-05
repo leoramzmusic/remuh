@@ -112,7 +112,13 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
               child: SizedBox(
                 width: double.infinity,
                 child: Text(
-                  _getSubTitle(filteredQueue.length, playlistName, shuffleMode),
+                  _getSubTitle(
+                    filteredQueue.length,
+                    playlistName,
+                    shuffleMode,
+                    effectiveIndex,
+                    effectiveQueue.length,
+                  ),
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Theme.of(
                       context,
@@ -143,15 +149,23 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
     int filteredCount,
     String? playlistName,
     bool shuffleMode,
+    int currentIndex,
+    int totalSongs,
   ) {
     if (_isSearching && _searchController.text.isNotEmpty) {
       return '$filteredCount resultados encontrados';
-    } else if (playlistName != null) {
-      return 'Reproduciendo $playlistName';
+    }
+
+    final progressText = totalSongs > 0
+        ? ' (${currentIndex + 1} de $totalSongs)'
+        : '';
+
+    if (playlistName != null) {
+      return 'Reproduciendo $playlistName$progressText';
     } else if (shuffleMode) {
-      return 'Modo Aleatorio Activo';
+      return 'Modo Aleatorio Activo$progressText';
     } else {
-      return 'Reproduciendo en orden';
+      return 'Reproduciendo en orden$progressText';
     }
   }
 }

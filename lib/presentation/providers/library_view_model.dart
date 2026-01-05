@@ -355,4 +355,16 @@ class LibraryViewModel extends StateNotifier<LibraryState> {
       Logger.error('Error toggling favorite in LibraryViewModel', e);
     }
   }
+
+  Future<void> clearAllFavorites() async {
+    try {
+      final favoriteTracks = state.tracks.where((t) => t.isFavorite).toList();
+      for (final track in favoriteTracks) {
+        await toggleFavorite(track.id);
+      }
+      Logger.info('All favorites cleared');
+    } catch (e) {
+      Logger.error('Error clearing all favorites', e);
+    }
+  }
 }
