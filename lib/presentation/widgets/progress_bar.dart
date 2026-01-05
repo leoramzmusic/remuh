@@ -5,8 +5,15 @@ import '../providers/dynamic_color_provider.dart';
 import 'dart:ui';
 
 /// Barra de progreso del reproductor
-class ProgressBar extends ConsumerWidget {
+class ProgressBar extends ConsumerStatefulWidget {
   const ProgressBar({super.key});
+
+  @override
+  ConsumerState<ProgressBar> createState() => _ProgressBarState();
+}
+
+class _ProgressBarState extends ConsumerState<ProgressBar> {
+  double? _dragValue;
 
   String _formatDuration(Duration duration) {
     String twoDigits(int n) => n.toString().padLeft(2, '0');
@@ -22,7 +29,7 @@ class ProgressBar extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final position = ref.watch(audioPlayerProvider.select((s) => s.position));
     final duration =
         ref.watch(audioPlayerProvider.select((s) => s.duration)) ??
@@ -34,7 +41,11 @@ class ProgressBar extends ConsumerWidget {
         ref.watch(dynamicColorsProvider).valueOrNull ??
         [theme.colorScheme.primary, theme.colorScheme.secondary];
 
-    final remaining = duration - position;
+    // Use drag value if active, otherwise use current position
+    final currentPositionValue =
+        _dragValue ?? position.inMilliseconds.toDouble();
+    final remaining =
+        duration - Duration(milliseconds: currentPositionValue.toInt());
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -67,7 +78,7 @@ class ProgressBar extends ConsumerWidget {
             ),
             child: Slider(
               value: duration.inMilliseconds > 0
-                  ? position.inMilliseconds.toDouble().clamp(
+                  ? currentPositionValue.clamp(
                       0.0,
                       duration.inMilliseconds.toDouble(),
                     )
@@ -77,9 +88,21 @@ class ProgressBar extends ConsumerWidget {
                   ? duration.inMilliseconds.toDouble()
                   : 1.0,
               onChanged: (value) {
+                if (_dragValue == null) {
+                  ref.read(sliderDraggingProvider.notifier).state = true;
+                }
+                setState(() {
+                  _dragValue = value;
+                });
+              },
+              onChangeEnd: (value) {
                 ref
                     .read(audioPlayerProvider.notifier)
                     .seekTo(Duration(milliseconds: value.toInt()));
+                setState(() {
+                  _dragValue = null;
+                });
+                ref.read(sliderDraggingProvider.notifier).state = false;
               },
             ),
           ),
@@ -91,7 +114,9 @@ class ProgressBar extends ConsumerWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                _formatDuration(position),
+                _formatDuration(
+                  Duration(milliseconds: currentPositionValue.toInt()),
+                ),
                 style: TextStyle(
                   fontSize: 11,
                   color: Colors.white.withValues(alpha: 0.7),

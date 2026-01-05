@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/audio_player_provider.dart';
 import '../widgets/track_artwork.dart';
 import '../screens/player_screen.dart';
+import '../core/animations/player_route.dart';
 
 import '../../core/services/color_extraction_service.dart';
 
@@ -60,10 +61,7 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
 
     return GestureDetector(
       onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const PlayerScreen()),
-        );
+        Navigator.push(context, PlayerPageRoute(page: const PlayerScreen()));
       },
       onHorizontalDragEnd: (details) {
         if (details.primaryVelocity! < 0) {
@@ -100,7 +98,12 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
           mainAxisSize: MainAxisSize.min,
           children: [
             // Album art
-            TrackArtwork(trackId: currentTrack.id, size: 48, borderRadius: 6),
+            TrackArtwork(
+              trackId: currentTrack.id,
+              size: 48,
+              borderRadius: 6,
+              heroTag: 'art_${currentTrack.id}',
+            ),
             const SizedBox(width: 12),
             // Track info
             Expanded(
@@ -108,16 +111,19 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    currentTrack.title,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      // Forcing white text when gradient is active for better contrast
-                      color: _backgroundColors != null ? Colors.white : null,
+                  Hero(
+                    tag: 'title_${currentTrack.id}',
+                    child: Text(
+                      currentTrack.title,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        // Forcing white text when gradient is active for better contrast
+                        color: _backgroundColors != null ? Colors.white : null,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
                   Text(
                     currentTrack.artist ?? 'Desconocido',

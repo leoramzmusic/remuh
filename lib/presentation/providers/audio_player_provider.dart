@@ -78,6 +78,9 @@ final scanTracksUseCaseProvider = Provider<ScanTracks>((ref) {
   return ScanTracks(repository);
 });
 
+// Provider for tracking if the progress bar is being dragged
+final sliderDraggingProvider = StateProvider<bool>((ref) => false);
+
 class AudioPlayerState {
   final Track? currentTrack;
   final PlaybackState playbackState;
@@ -93,6 +96,7 @@ class AudioPlayerState {
   final List<Track> originalQueue;
   final bool isFastForwarding;
   final bool isRewinding;
+  final int seekMultiplier;
 
   const AudioPlayerState({
     this.currentTrack,
@@ -109,6 +113,7 @@ class AudioPlayerState {
     this.originalQueue = const [],
     this.isFastForwarding = false,
     this.isRewinding = false,
+    this.seekMultiplier = 1,
   });
 
   List<Track> get effectiveQueue => queue; // Order is now always physical
@@ -129,6 +134,7 @@ class AudioPlayerState {
     List<Track>? originalQueue,
     bool? isFastForwarding,
     bool? isRewinding,
+    int? seekMultiplier,
   }) {
     return AudioPlayerState(
       currentTrack: currentTrack ?? this.currentTrack,
@@ -145,6 +151,7 @@ class AudioPlayerState {
       originalQueue: originalQueue ?? this.originalQueue,
       isFastForwarding: isFastForwarding ?? this.isFastForwarding,
       isRewinding: isRewinding ?? this.isRewinding,
+      seekMultiplier: seekMultiplier ?? this.seekMultiplier,
     );
   }
 
@@ -220,29 +227,35 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
     _seekMultiplier = 1;
     state = state.copyWith(isFastForwarding: true);
 
+    // Use a local target position to avoid race conditions with the stream
+    Duration targetPos = state.position;
+
     _seekTimer = Timer.periodic(const Duration(milliseconds: 200), (
       timer,
     ) async {
-      final currentPos = state.position;
       final duration = state.duration ?? Duration.zero;
       final jump = Duration(seconds: 1 * _seekMultiplier);
+      targetPos += jump;
 
-      if (currentPos + jump >= duration) {
+      if (targetPos >= duration) {
         await seekTo(duration);
         await _repository.pause();
+        stopFastForward(); // Auto stop if we hit the end
       } else {
-        await seekTo(currentPos + jump);
+        await seekTo(targetPos);
         if (timer.tick % 5 == 0 && _seekMultiplier < 8) {
           _seekMultiplier *= 2;
+          state = state.copyWith(seekMultiplier: _seekMultiplier);
         }
       }
     });
   }
 
   void stopFastForward() {
+    if (_seekTimer == null) return;
     _seekTimer?.cancel();
     _seekTimer = null;
-    state = state.copyWith(isFastForwarding: false);
+    state = state.copyWith(isFastForwarding: false, seekMultiplier: 1);
 
     if (state.position >= (state.duration ?? Duration.zero)) {
       skipToNext();
@@ -257,28 +270,34 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
     _seekMultiplier = 1;
     state = state.copyWith(isRewinding: true);
 
+    Duration targetPos = state.position;
+
     _seekTimer = Timer.periodic(const Duration(milliseconds: 200), (
       timer,
     ) async {
-      final currentPos = state.position;
       final jump = Duration(seconds: 1 * _seekMultiplier);
 
-      if (currentPos <= jump) {
-        await seekTo(Duration.zero);
+      if (targetPos <= jump) {
+        targetPos = Duration.zero;
+        await seekTo(targetPos);
         await _repository.pause();
+        stopRewind();
       } else {
-        await seekTo(currentPos - jump);
+        targetPos -= jump;
+        await seekTo(targetPos);
         if (timer.tick % 5 == 0 && _seekMultiplier < 8) {
           _seekMultiplier *= 2;
+          state = state.copyWith(seekMultiplier: _seekMultiplier);
         }
       }
     });
   }
 
   void stopRewind() {
+    if (_seekTimer == null) return;
     _seekTimer?.cancel();
     _seekTimer = null;
-    state = state.copyWith(isRewinding: false);
+    state = state.copyWith(isRewinding: false, seekMultiplier: 1);
 
     if (_wasPlayingBeforeSeek) {
       _repository.play();

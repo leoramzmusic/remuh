@@ -11,6 +11,7 @@ class TrackArtwork extends ConsumerWidget {
   final double size;
   final double borderRadius;
   final IconData? placeholderIcon;
+  final String? heroTag;
   final FilterQuality filterQuality;
 
   // Simple in-memory cache to speed up loading and prevent flickering on frequent reloads
@@ -27,6 +28,7 @@ class TrackArtwork extends ConsumerWidget {
     this.size = 50,
     this.borderRadius = 8,
     this.placeholderIcon,
+    this.heroTag,
     this.filterQuality = FilterQuality.medium,
   });
 
@@ -36,7 +38,7 @@ class TrackArtwork extends ConsumerWidget {
     final icons = AppIconSet.fromStyle(customization.iconStyle);
     final actualPlaceholder = placeholderIcon ?? icons.lyrics;
 
-    return SizedBox(
+    Widget artwork = SizedBox(
       width: size,
       height: size,
       child: FutureBuilder<Uint8List?>(
@@ -96,6 +98,12 @@ class TrackArtwork extends ConsumerWidget {
         },
       ),
     );
+
+    if (heroTag != null) {
+      return Hero(tag: heroTag!, child: artwork);
+    }
+
+    return artwork;
   }
 
   Future<Uint8List?> _getArtworkBytes(String trackId) async {

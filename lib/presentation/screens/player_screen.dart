@@ -448,9 +448,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         // Adjust spacing and sizes based on available height
         final double maxHeight = constraints.maxHeight;
         final bool isSmallScreen = maxHeight < 600;
+        final isDraggingSlider = ref.watch(sliderDraggingProvider);
 
         return SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
+          physics: isDraggingSlider
+              ? const NeverScrollableScrollPhysics()
+              : const BouncingScrollPhysics(),
           child: ConstrainedBox(
             constraints: BoxConstraints(minHeight: maxHeight),
             child: Padding(
@@ -481,6 +484,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                             queue,
                             currentIndex,
                             false,
+                            heroTag: displayedTrack != null
+                                ? 'art_${displayedTrack.id}'
+                                : null,
                           ),
                           if (ref.watch(
                             audioPlayerProvider.select(
@@ -504,23 +510,49 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
                   SizedBox(height: isSmallScreen ? 16 : 28),
 
-                  // Playback Controls
-                  _buildPlaybackControls(
-                    context,
-                    isPlaying,
-                    hasNext,
-                    hasPrevious,
-                    repeatMode,
-                    shuffleMode,
-                    compact: isSmallScreen,
-                  ),
+                  // Element Scaling/Fading Animation
+                  AnimatedBuilder(
+                    animation:
+                        ModalRoute.of(context)?.animation ??
+                        kAlwaysCompleteAnimation,
+                    builder: (context, child) {
+                      final animation =
+                          ModalRoute.of(context)?.animation ??
+                          kAlwaysCompleteAnimation;
+                      // Elements fade out faster than they slide
+                      final fadeValue = Curves.easeInQuint.transform(
+                        (1.0 - animation.value).clamp(0.0, 1.0),
+                      );
+                      final opacity = 1.0 - fadeValue;
+                      final scale = 1.0 - (fadeValue * 0.1);
 
-                  SizedBox(height: isSmallScreen ? 12 : 20),
+                      return Opacity(
+                        opacity: opacity,
+                        child: Transform.scale(scale: scale, child: child),
+                      );
+                    },
+                    child: Column(
+                      children: [
+                        // Playback Controls
+                        _buildPlaybackControls(
+                          context,
+                          isPlaying,
+                          hasNext,
+                          hasPrevious,
+                          repeatMode,
+                          shuffleMode,
+                          compact: isSmallScreen,
+                        ),
 
-                  // Progress Bar
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 24.0),
-                    child: ProgressBar(),
+                        SizedBox(height: isSmallScreen ? 12 : 20),
+
+                        // Progress Bar
+                        const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 24.0),
+                          child: ProgressBar(),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -566,18 +598,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           const SizedBox(height: 16),
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 300),
-            transitionBuilder: (Widget child, Animation<double> animation) {
-              return FadeTransition(opacity: animation, child: child);
-            },
-            child: MarqueeText(
-              key: ValueKey('title_${track?.id ?? 'none'}'),
-              text: track?.title ?? 'No Track Playing',
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
+            child: Hero(
+              tag: 'title_${track?.id ?? 'none'}',
+              child: MarqueeText(
+                key: ValueKey('title_${track?.id ?? 'none'}'),
+                text: track?.title ?? 'No Track Playing',
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+                height: 32,
               ),
-              height: 32,
             ),
           ),
           const SizedBox(height: 8),
@@ -623,7 +655,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       children: [
         // Columna izquierda: Repetir y Aleatorio - Ancho fijo para centrar la fila del medio
         SizedBox(
-          width: 64,
+          width: 52,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -667,7 +699,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 ),
               ),
               // Espaciador de tamaño fijo igual al de la derecha para mantener alineación
-              const SizedBox(height: 24),
+              const SizedBox(height: 12),
               SizedBox(
                 width: 48,
                 height: 48,
@@ -690,7 +722,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           ),
         ),
 
-        const SizedBox(width: 16),
+        const SizedBox(width: 8),
 
         // Controles centrales: Anterior, Play/Pause, Siguiente
         Row(
@@ -708,16 +740,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   ? () =>
                         ref.read(audioPlayerProvider.notifier).skipToPrevious()
                   : null,
-              onLongPressStart: hasPrevious
+              // Allow rewind if we have a track, regardless of queue position
+              onLongPressStart:
+                  ref.read(audioPlayerProvider).currentTrack != null
                   ? () => ref.read(audioPlayerProvider.notifier).startRewind()
                   : null,
-              onLongPressEnd: hasPrevious
+              onLongPressEnd: ref.read(audioPlayerProvider).currentTrack != null
                   ? () => ref.read(audioPlayerProvider.notifier).stopRewind()
                   : null,
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 8),
             PlayPauseButton(size: (playPauseSize / 1.5).clamp(48.0, 96.0)),
-            const SizedBox(width: 12),
+            const SizedBox(width: 8),
             _AnimatedIconButton(
               icon: Icon(
                 Icons.skip_next,
@@ -742,11 +776,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           ],
         ),
 
-        const SizedBox(width: 16),
+        const SizedBox(width: 8),
 
         // Columna derecha: Temporizador y Ecualizador - Ancho fijo para centrar la fila del medio
         SizedBox(
-          width: 64,
+          width: 52,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -773,7 +807,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               ),
               // Espaciador de tamaño fijo para las etiquetas del timer
               SizedBox(
-                height: 24,
+                height: 12,
                 child: Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -1012,9 +1046,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     Track? track,
     List<Track> queue,
     int currentIndex,
-    bool isLandscape,
-  ) {
-    if (track == null) return _buildPlaceholderCover();
+    bool isLandscape, {
+    String? heroTag,
+  }) {
+    if (track == null) {
+      return TrackArtwork(
+        trackId: 'none',
+        size: 300,
+        borderRadius: 20,
+        heroTag: heroTag,
+      );
+    }
+
+    // ModalRoute animation to drive the minimize effect
+    final routeAnimation =
+        ModalRoute.of(context)?.animation ?? kAlwaysCompleteAnimation;
 
     // Using PageView for swipe support which users expect
     return PageView.builder(
@@ -1041,33 +1087,39 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         if (!shouldRender) return const SizedBox.shrink();
 
         return AnimatedBuilder(
-          animation: _pageController,
+          animation: Listenable.merge([_pageController, routeAnimation]),
           builder: (context, child) {
-            double value = 1.0;
+            // PageView Scroll factor
+            double pageValue = 1.0;
             if (_pageController.position.hasContentDimensions) {
-              value = (_pageController.page! - index).abs();
-              value = (1 - (value * 0.2)).clamp(0.8, 1.0);
+              pageValue = (_pageController.page! - index).abs();
+              pageValue = (1 - (pageValue * 0.2)).clamp(0.8, 1.0);
             } else {
-              // Initial state
-              value = (index == currentIndex) ? 1.0 : 0.8;
+              pageValue = (index == currentIndex) ? 1.0 : 0.8;
             }
 
-            final safeValue = value.isNaN ? 1.0 : value;
+            // Route minimize factor
+            final routeValue = routeAnimation.value;
+            final double safeRouteValue = routeValue.isNaN ? 1.0 : routeValue;
+
+            // Elements shrink when route is popping
+            final double minimizeScale = 0.8 + (safeRouteValue * 0.2);
+            final double finalScale = pageValue * minimizeScale;
+            // Fade out if we are swiping away OR if we are minimizing
+            final double opacity = (pageValue < 0.7)
+                ? 0.0
+                : (((pageValue - 0.7) / 0.3) * (0.5 + safeRouteValue * 0.5))
+                      .clamp(0.0, 1.0);
+
             return Center(
               child: Transform.scale(
-                scale: safeValue,
-                child: Opacity(
-                  opacity: (safeValue < 0.7)
-                      ? 0.0
-                      : ((safeValue - 0.7) / 0.3).clamp(0.0, 1.0),
-                  child: child,
-                ),
+                scale: finalScale,
+                child: Opacity(opacity: opacity, child: child),
               ),
             );
           },
           child: LayoutBuilder(
             builder: (context, constraints) {
-              // Use the smallest of width or height to keep it square and finite
               final artSize = math.min(
                 constraints.maxWidth,
                 constraints.maxHeight,
@@ -1075,9 +1127,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
               return Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(20),
-                  child: TrackArtwork(trackId: queue[index].id, size: artSize),
+                child: TrackArtwork(
+                  trackId: queue[index].id,
+                  size: artSize,
+                  borderRadius: 20,
+                  heroTag: index == currentIndex ? heroTag : null,
                 ),
               );
             },
@@ -1226,27 +1280,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
     return "$twoDigitMinutes:$twoDigitSeconds";
   }
-
-  Widget _buildPlaceholderCover() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.grey[900],
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: const Center(
-        child: Icon(Icons.music_note, color: Colors.white24, size: 80),
-      ),
-    );
-  }
 }
 
-class _SeekIndicator extends StatelessWidget {
+class _SeekIndicator extends ConsumerWidget {
   final bool isForward;
 
-  const _SeekIndicator({required this.isForward});
+  const _SeekIndicator({super.key, required this.isForward});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final speed = ref.watch(
+      audioPlayerProvider.select((s) => s.seekMultiplier),
+    );
+
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -1270,7 +1316,7 @@ class _SeekIndicator extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            isForward ? 'FAST FORWARD' : 'REWIND',
+            isForward ? 'FAST FORWARD ${speed}X' : 'REWIND ${speed}X',
             style: const TextStyle(
               color: Colors.white,
               fontSize: 10,
@@ -1315,6 +1361,7 @@ class _AnimatedIconButtonState extends State<_AnimatedIconButton>
   late Animation<double> _scaleAnimation;
   late Animation<Offset> _slideAnimation;
   late Animation<double> _rotateAnimation;
+  bool _isLongPressActive = false;
 
   @override
   void initState() {
@@ -1365,7 +1412,8 @@ class _AnimatedIconButtonState extends State<_AnimatedIconButton>
   }
 
   void _handleTap() {
-    if (widget.onTap == null) return;
+    // If long press is active, ignore tap
+    if (widget.onTap == null || _isLongPressActive) return;
     _controller.forward(from: 0);
     widget.onTap!();
   }
@@ -1376,6 +1424,7 @@ class _AnimatedIconButtonState extends State<_AnimatedIconButton>
       onTap: _handleTap,
       onLongPressStart: widget.onLongPressStart != null
           ? (_) {
+              setState(() => _isLongPressActive = true);
               _controller.forward(from: 0);
               widget.onLongPressStart!();
             }
@@ -1383,8 +1432,18 @@ class _AnimatedIconButtonState extends State<_AnimatedIconButton>
       onLongPressEnd: widget.onLongPressEnd != null
           ? (_) {
               widget.onLongPressEnd!();
+              // Reset long press flag after a small delay to ensure onTap isn't successfully triggered
+              // by the system if the touch up happens too quickly
+              Future.delayed(const Duration(milliseconds: 200), () {
+                if (mounted) setState(() => _isLongPressActive = false);
+              });
             }
           : null,
+      onLongPressCancel: () {
+        Future.delayed(const Duration(milliseconds: 200), () {
+          if (mounted) setState(() => _isLongPressActive = false);
+        });
+      },
       behavior: HitTestBehavior.opaque,
       child: AnimatedBuilder(
         animation: _controller,
