@@ -23,7 +23,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 6,
+      version: 7,
       onCreate: (db, version) async {
         Logger.info('Creating database tables...');
 
@@ -34,6 +34,7 @@ class DatabaseService {
             name TEXT NOT NULL,
             description TEXT,
             coverUrl TEXT,
+            customCover TEXT,
             createdAt TEXT NOT NULL
           )
         ''');
@@ -146,6 +147,15 @@ class DatabaseService {
               dateImported INTEGER
             )
           ''');
+        }
+        if (oldVersion < 7) {
+          try {
+            await db.execute(
+              'ALTER TABLE playlists ADD COLUMN customCover TEXT',
+            );
+          } catch (e) {
+            Logger.warning('Error adding customCover column: $e');
+          }
         }
       },
     );

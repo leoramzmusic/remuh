@@ -120,15 +120,49 @@ class PlaylistTracksScreen extends ConsumerWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  subtitle: Text(
-                    track.artist ?? 'Desconocido',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        track.artist ?? 'Desconocido',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (playlist.smartType == 'top' && track.playCount > 0)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.play_arrow_rounded,
+                                size: 12,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.primary.withValues(alpha: 0.7),
+                              ),
+                              Text(
+                                ' ${track.playCount} reproducciones',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.primary.withValues(alpha: 0.7),
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
                   ),
                   onTap: () {
                     ref
                         .read(audioPlayerProvider.notifier)
-                        .loadPlaylist(playlistTracks, index - 1);
+                        .loadPlaylist(
+                          playlistTracks,
+                          index - 1,
+                          playlistName: playlist.name,
+                        );
                   },
                   onLongPress: () => _showTrackActions(context, track),
                   trailing: IconButton(

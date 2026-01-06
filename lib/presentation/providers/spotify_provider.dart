@@ -4,7 +4,6 @@ import '../../domain/entities/spotify_track.dart';
 import '../../domain/repositories/spotify_repository.dart';
 import '../../data/repositories/spotify_repository_impl.dart';
 import '../../services/spotify_service.dart';
-import '../../services/database_service.dart';
 import 'library_view_model.dart';
 import 'playlists_provider.dart';
 

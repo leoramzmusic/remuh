@@ -1,9 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../domain/entities/playlist.dart';
 import '../../domain/entities/track.dart';
 import '../../domain/repositories/playlist_repository.dart';
 import '../../data/repositories/playlist_repository_impl.dart';
 import '../../services/database_service.dart';
+import '../../services/image_service.dart';
 import 'audio_player_provider.dart';
 import 'library_view_model.dart';
 import 'spotify_provider.dart';
@@ -17,11 +19,16 @@ final playlistRepositoryProvider = Provider<PlaylistRepository>((ref) {
   return PlaylistRepositoryImpl(dbService);
 });
 
+final imageServiceProvider = Provider<ImageService>((ref) => ImageService());
+
 class PlaylistsNotifier extends StateNotifier<AsyncValue<List<Playlist>>> {
   final PlaylistRepository _repository;
+  final ImageService _imageService;
   final Ref _ref;
+  final _hiddenGenresKey = 'hidden_genres';
+  final _customImagesKey = 'smart_playlist_images';
 
-  PlaylistsNotifier(this._repository, this._ref)
+  PlaylistsNotifier(this._repository, this._imageService, this._ref)
     : super(const AsyncValue.loading()) {
     loadPlaylists();
 
@@ -53,150 +60,275 @@ class PlaylistsNotifier extends StateNotifier<AsyncValue<List<Playlist>>> {
         return await loadPlaylistsInternal();
       }
 
-      return await loadPlaylistsInternal();
+      final playlists = await loadPlaylistsInternal();
+
+      // Trigger background collage update
+      _updatePlaylistCovers(playlists);
+
+      return playlists;
     });
+  }
+
+  Future<void> _updatePlaylistCovers(List<Playlist> playlists) async {
+    bool stateChanged = false;
+    final updatedPlaylists = [...playlists];
+    final libraryTracks = _ref.read(libraryViewModelProvider).tracks;
+
+    for (int i = 0; i < updatedPlaylists.length; i++) {
+      final playlist = updatedPlaylists[i];
+
+      // Skip if it has a custom cover set (manual override)
+      if (playlist.customCover != null) continue;
+
+      // Only generate if we have tracks
+      if (playlist.trackIds.isNotEmpty) {
+        // Get Track objects first
+        final tracks = playlist.trackIds
+            .map(
+              (id) => libraryTracks.firstWhere(
+                (t) => t.id == id,
+                orElse: () => const Track(id: '', title: '', filePath: ''),
+              ),
+            )
+            .where(
+              (t) =>
+                  t.id.isNotEmpty &&
+                  t.artworkPath != null &&
+                  t.artworkPath!.isNotEmpty,
+            )
+            .toList();
+
+        if (tracks.isNotEmpty) {
+          List<Track> selectedTracks;
+
+          if (playlist.isSmart) {
+            if (playlist.smartType == 'top') {
+              // Top: sort by playCount descending
+              selectedTracks = List.from(tracks)
+                ..sort((a, b) => b.playCount.compareTo(a.playCount));
+            } else if (playlist.smartType == 'added') {
+              // Added: sort by dateAdded descending
+              selectedTracks = List.from(tracks)
+                ..sort((a, b) {
+                  final dateA = a.dateAdded ?? DateTime(2000);
+                  final dateB = b.dateAdded ?? DateTime(2000);
+                  return dateB.compareTo(dateA);
+                });
+            } else {
+              // Genre or others: Shuffle
+              selectedTracks = List.from(tracks)..shuffle();
+            }
+          } else {
+            // Manual Playlists: Shuffle by default for dynamic cover
+            selectedTracks = List.from(tracks)..shuffle();
+          }
+
+          // Take unique artworks
+          final uniqueArtworks = <String>{};
+          final selectedArtworks = <String>[];
+
+          for (final track in selectedTracks) {
+            if (selectedArtworks.length >= 4) break;
+            if (track.artworkPath != null &&
+                uniqueArtworks.add(track.artworkPath!)) {
+              selectedArtworks.add(track.artworkPath!);
+            }
+          }
+
+          // Generate if artwork found
+          if (selectedArtworks.isNotEmpty) {
+            final collagePath = await _imageService.generatePlaylistCollage(
+              selectedArtworks,
+              playlist.name,
+            );
+
+            if (collagePath != null && collagePath != playlist.coverUrl) {
+              // Update in memory state
+              // For manual playlists, we might want to verify if we should persist this generated URL
+              // to DB 'coverUrl' field so it persists without re-generation every start?
+              // The user requirement says "Actualizar collage automáticamente ... Al crear ... Al agregar".
+              // Re-generating on load is fine, but persisting 'coverUrl' in DB for manual playlists improves startup perf.
+              // However, 'loadPlaylistsInternal' reads from DB.
+              // If we only update state here, it won't persist to DB 'coverUrl'.
+              // Let's update state here. Persist optimization is secondary unless requested.
+              // Actually, user said: "Guardar como imagen final ... Si quieres que el collage sea persistente ... guardas ese Uint8List como generatedCover".
+              // Since I don't have 'generatedCover' field, I use 'coverUrl'.
+
+              updatedPlaylists[i] = playlist.copyWith(coverUrl: collagePath);
+              stateChanged = true;
+
+              if (!playlist.isSmart) {
+                // Ideally update DB too so we don't regenerate every single time if valid
+                // But for now, let's keep it simple: State update.
+                // Optionally: _repository.updatePlaylist(updatedPlaylists[i]);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    if (stateChanged && mounted) {
+      state = AsyncValue.data(updatedPlaylists);
+    }
   }
 
   Future<List<Playlist>> loadPlaylistsInternal() async {
     final userPlaylists = await _repository.getAllPlaylists();
     final libraryTracks = _ref.read(libraryViewModelProvider).tracks;
 
-    final List<Playlist> smartPlaylists = [];
+    // --- Smart Playlist Generation ---
+    final smartPlaylists = <Playlist>[];
 
-    // 1. Recientes (Historial)
-    final recentlyPlayedIds = await _repository.getRecentlyPlayedTrackIds(50);
-    if (recentlyPlayedIds.isNotEmpty) {
-      smartPlaylists.add(
-        Playlist(
-          id: -1,
-          name: 'Escuchadas recientemente',
-          description: 'Tu historial de reproducción reciente',
-          trackIds: recentlyPlayedIds,
-          isSmart: true,
-          smartType: 'recent',
-        ),
-      );
-    }
-
-    // 2. Más escuchadas (Global)
-    final mostPlayedIds = await _repository.getMostPlayedTrackIds(50);
-    if (mostPlayedIds.isNotEmpty) {
-      smartPlaylists.add(
-        Playlist(
-          id: -2,
-          name: 'Tus favoritas (Top 50)',
-          description: 'Las canciones que más has disfrutado',
-          trackIds: mostPlayedIds,
-          isSmart: true,
-          smartType: 'top',
-        ),
-      );
-    }
-
-    // 3. Recientemente añadidas
-    final recentlyAdded = libraryTracks.toList()
+    // 1. Recently Added (Recién añadidas)
+    final recentTracks = List<Track>.from(libraryTracks)
       ..sort((a, b) {
         final dateA = a.dateAdded ?? DateTime(2000);
         final dateB = b.dateAdded ?? DateTime(2000);
         return dateB.compareTo(dateA);
       });
 
-    final recentlyAddedIds = recentlyAdded.take(50).map((t) => t.id).toList();
-    if (recentlyAddedIds.isNotEmpty) {
+    if (libraryTracks.isNotEmpty) {
       smartPlaylists.add(
         Playlist(
-          id: -4,
+          id: -100,
           name: 'Recién añadidas',
-          description: 'Lo último que ha llegado a tu biblioteca',
-          trackIds: recentlyAddedIds,
+          trackIds: recentTracks.take(50).map((t) => t.id).toList(),
           isSmart: true,
           smartType: 'added',
+          canBeDeleted: false,
+          canBeHidden: false,
+          description: 'Canciones añadidas recientemente',
         ),
       );
     }
 
-    // 4. Por conseguir (from Spotify)
-    final spotifyTracks = _ref
-        .read(spotifyProvider)
-        .savedTracks
+    // 2. Most Played (Más escuchadas)
+    final topTracks = List<Track>.from(libraryTracks)
+      ..sort((a, b) => b.playCount.compareTo(a.playCount));
+
+    final topTracksFiltered = topTracks.where((t) => t.playCount > 0).take(100);
+    if (libraryTracks.isNotEmpty) {
+      smartPlaylists.add(
+        Playlist(
+          id: -101,
+          name: 'Más escuchadas',
+          trackIds: topTracksFiltered.map((t) => t.id).toList(),
+          isSmart: true,
+          smartType: 'top',
+          canBeDeleted: false,
+          canBeHidden: false,
+          description: 'Tus 100 canciones favoritas',
+        ),
+      );
+    }
+
+    // 3. Genre Playlists (Por género)
+    final Map<String, List<Track>> genres = {};
+    for (var track in libraryTracks) {
+      if (track.genre != null &&
+          track.genre!.trim().isNotEmpty &&
+          track.genre != '<unknown>') {
+        genres.putIfAbsent(track.genre!, () => []).add(track);
+      }
+    }
+
+    final sortedGenres = genres.keys.toList()..sort();
+    var genreIdCounter = -200;
+
+    for (final genre in sortedGenres) {
+      final genreTracks = genres[genre]!;
+      smartPlaylists.add(
+        Playlist(
+          id: genreIdCounter--,
+          name: genre,
+          trackIds: genreTracks.map((t) => t.id).toList(),
+          isSmart: true,
+          smartType: 'genre',
+          canBeDeleted: false,
+          canBeHidden: true,
+          description: '${genreTracks.length} canciones',
+        ),
+      );
+    }
+
+    // 4. Favorites (Favoritos) - Moving here to treat as Smart
+    final favorites = userPlaylists
+        .where((p) => p.name == 'Favoritos')
+        .firstOrNull;
+    if (favorites != null) {
+      smartPlaylists.add(
+        favorites.copyWith(
+          isSmart: true,
+          smartType: 'favorites',
+          canBeDeleted: false,
+          canBeHidden:
+              false, // Favoritos usually shouldn't be hidden in this section
+        ),
+      );
+    }
+
+    // 4. Spotify Pending (Por conseguir)
+    // We already have spotifyProvider, but loadPlaylists is triggered when it changes.
+    final spotifyState = _ref.read(spotifyProvider);
+    final pendingSpotifyTracks = spotifyState.savedTracks
         .where((t) => !t.isAcquired)
         .toList();
 
-    if (spotifyTracks.isNotEmpty) {
+    if (pendingSpotifyTracks.isNotEmpty) {
       smartPlaylists.add(
         Playlist(
-          id: -3,
+          id: -300,
           name: 'Por conseguir',
-          description: 'Pendientes de Spotify 🛒',
-          trackIds: [], // Custom screen
+          trackIds:
+              [], // Tracks are managed separately in spotify_pending_tracks_screen
           isSmart: true,
           smartType: 'spotify_pending',
+          canBeDeleted: false,
+          canBeHidden: true,
+          description: 'Canciones pendientes de Spotify',
         ),
       );
     }
 
-    // 5. Por Género (Sorted by total playCount in that genre)
-    final Map<String, List<Track>> genreTracks = {};
-    for (final track in libraryTracks) {
-      final genre = track.genre ?? 'Desconocido';
-      if (!genreTracks.containsKey(genre)) {
-        genreTracks[genre] = [];
+    // --- Filter Hidden Smart Playlists ---
+    final prefs = await SharedPreferences.getInstance();
+    final hiddenKeys = prefs.getStringList(_hiddenGenresKey) ?? [];
+
+    final visibleSmartPlaylists = smartPlaylists.map((p) {
+      String key = p.name;
+      if (p.smartType == 'genre') {
+        key = 'genre_${p.name}';
+      } else if (p.smartType == 'spotify_pending') {
+        key = 'spotify_pending';
       }
-      genreTracks[genre]!.add(track);
-    }
-
-    final genrePlaylists =
-        genreTracks.entries.where((e) => e.value.length >= 3).map((e) {
-          final totalPlays = (e.value as List<Track>).fold(
-            0,
-            (sum, t) => sum + (t.playCount),
-          );
-          return MapEntry(e.key, {'tracks': e.value, 'plays': totalPlays});
-        }).toList()..sort(
-          (a, b) =>
-              (b.value['plays'] as int).compareTo(a.value['plays'] as int),
-        );
-
-    final List<Playlist> genreSmartPlaylists = genrePlaylists.map((e) {
-      final genre = e.key;
-      final tracks = e.value['tracks'] as List<Track>;
-      return Playlist(
-        id: -100 - genreTracks.keys.toList().indexOf(genre),
-        name: '$genre Mix',
-        description: 'Lo mejor del género $genre',
-        trackIds: tracks.map((t) => t.id).toList(),
-        isSmart: true,
-        smartType: 'genre',
-      );
+      // If the key is in hiddenKeys, mark playlist as hidden
+      return p.copyWith(isHidden: hiddenKeys.contains(key));
     }).toList();
 
-    // Sort user playlists - Favoritos first, then alphabetical
-    final sortedUserPlaylists = userPlaylists.toList()
-      ..sort((a, b) {
-        if (a.name == 'Favoritos') return -1;
-        if (b.name == 'Favoritos') return 1;
-        return a.name.toLowerCase().compareTo(b.name.toLowerCase());
-      });
+    // --- Combine All ---
+    final allPlaylists = <Playlist>[];
 
-    return [...smartPlaylists, ...genreSmartPlaylists, ...sortedUserPlaylists];
+    // Add Smart Playlists (Screen will handle filtering and visual sections)
+    allPlaylists.addAll(visibleSmartPlaylists);
+
+    // Add User Playlists (NOT favorites, as it's now smart)
+    final otherUserPlaylists = userPlaylists.where(
+      (p) => p.name != 'Favoritos',
+    );
+    allPlaylists.addAll(otherUserPlaylists);
+
+    return allPlaylists;
   }
 
   Future<void> createPlaylist(
     String name, {
     String? description,
-    String? coverUrl,
+    String? coverPath,
   }) async {
-    final newPlaylist = Playlist(
-      name: name,
-      description: description,
-      coverUrl: coverUrl,
+    await _repository.createPlaylist(
+      Playlist(name: name, description: description, customCover: coverPath),
     );
-    await _repository.createPlaylist(newPlaylist);
-    await loadPlaylists();
-  }
-
-  Future<void> deletePlaylist(int id) async {
-    await _repository.deletePlaylist(id);
     await loadPlaylists();
   }
 
@@ -210,6 +342,64 @@ class PlaylistsNotifier extends StateNotifier<AsyncValue<List<Playlist>>> {
     await loadPlaylists();
   }
 
+  Future<void> deletePlaylist(int id) async {
+    await _repository.deletePlaylist(id);
+    await loadPlaylists();
+  }
+
+  Future<void> toggleGenreVisibility(String name, bool isGenre) async {
+    final prefs = await SharedPreferences.getInstance();
+    final hiddenGenres = prefs.getStringList(_hiddenGenresKey) ?? [];
+
+    final key = isGenre ? 'genre_$name' : name;
+
+    if (hiddenGenres.contains(key)) {
+      hiddenGenres.remove(key);
+    } else {
+      hiddenGenres.add(key);
+    }
+
+    await prefs.setStringList(_hiddenGenresKey, hiddenGenres);
+    await loadPlaylists();
+  }
+
+  Future<void> updatePlaylistCover(Playlist playlist, String? path) async {
+    if (playlist.isSmart) {
+      final prefs = await SharedPreferences.getInstance();
+      final customImages = <String, String>{};
+      final savedImagesList = prefs.getStringList(_customImagesKey) ?? [];
+
+      for (final entry in savedImagesList) {
+        final parts = entry.split('|');
+        if (parts.length == 2) {
+          customImages[parts[0]] = parts[1];
+        }
+      }
+
+      String key = playlist.smartType ?? '';
+      if (playlist.smartType == 'genre') {
+        key = 'genre_${playlist.name}';
+      }
+
+      if (path == null) {
+        customImages.remove(key);
+      } else {
+        customImages[key] = path;
+      }
+
+      final newSavedList = customImages.entries
+          .map((e) => '${e.key}|${e.value}')
+          .toList();
+
+      await prefs.setStringList(_customImagesKey, newSavedList);
+    } else {
+      // Manual Playlists - Update DB
+      // customCover being null means "Automatic"
+      await _repository.updatePlaylist(playlist.copyWith(customCover: path));
+    }
+    await loadPlaylists();
+  }
+
   Future<void> toggleFavorite(String trackId) async {
     final playlists = state.value ?? [];
     Playlist? favorites = playlists
@@ -218,9 +408,13 @@ class PlaylistsNotifier extends StateNotifier<AsyncValue<List<Playlist>>> {
 
     if (favorites == null) {
       await _repository.createPlaylist(Playlist(name: 'Favoritos'));
-      final all = await _repository.getAllPlaylists();
-      state = AsyncValue.data(all);
-      favorites = all.firstWhere((p) => p.name == 'Favoritos');
+      await _repository.createPlaylist(Playlist(name: 'Favoritos'));
+      // Ideally we just call loadPlaylists() full cycle
+      // but we need favorites ID.
+      // Let's just create and reload.
+      await loadPlaylists();
+      final newState = state.value ?? [];
+      favorites = newState.firstWhere((p) => p.name == 'Favoritos');
     }
 
     if (favorites.trackIds.contains(trackId)) {
@@ -232,6 +426,8 @@ class PlaylistsNotifier extends StateNotifier<AsyncValue<List<Playlist>>> {
 
   /// Sync favorite status from LibraryViewModel
   Future<void> syncFavoriteStatus(String trackId, bool isFavorite) async {
+    // Similar logic to toggleFavorite but checking status
+    // Using loadPlaylists cycle ensures robustness
     final playlists = state.value ?? [];
     Playlist? favorites = playlists
         .where((p) => p.name == 'Favoritos')
@@ -239,9 +435,9 @@ class PlaylistsNotifier extends StateNotifier<AsyncValue<List<Playlist>>> {
 
     if (favorites == null && isFavorite) {
       await _repository.createPlaylist(Playlist(name: 'Favoritos'));
-      final all = await _repository.getAllPlaylists();
-      state = AsyncValue.data(all);
-      favorites = all.firstWhere((p) => p.name == 'Favoritos');
+      await loadPlaylists();
+      final newState = state.value ?? [];
+      favorites = newState.firstWhere((p) => p.name == 'Favoritos');
     }
 
     if (favorites != null) {
@@ -316,5 +512,6 @@ class PlaylistsNotifier extends StateNotifier<AsyncValue<List<Playlist>>> {
 final playlistsProvider =
     StateNotifierProvider<PlaylistsNotifier, AsyncValue<List<Playlist>>>((ref) {
       final repository = ref.watch(playlistRepositoryProvider);
-      return PlaylistsNotifier(repository, ref);
+      final imageService = ref.watch(imageServiceProvider);
+      return PlaylistsNotifier(repository, imageService, ref);
     });

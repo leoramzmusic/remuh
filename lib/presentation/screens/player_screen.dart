@@ -189,7 +189,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       // Barrier (Tap to close)
                       GestureDetector(
                         onTap: () => setState(() => _showLyrics = false),
-                        child: Container(color: Colors.black.withOpacity(0.3)),
+                        child: Container(
+                          color: Colors.black.withValues(alpha: 0.3),
+                        ),
                       ),
                       // Draggable Sheet
                       TweenAnimationBuilder<double>(
@@ -232,13 +234,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                     decoration: BoxDecoration(
                                       color: Theme.of(context)
                                           .scaffoldBackgroundColor
-                                          .withOpacity(0.5), // Semi-transparent
+                                          .withValues(
+                                            alpha: 0.5,
+                                          ), // Semi-transparent
                                       borderRadius: const BorderRadius.vertical(
                                         top: Radius.circular(24),
                                       ),
                                       boxShadow: [
                                         BoxShadow(
-                                          color: Colors.black.withOpacity(0.3),
+                                          color: Colors.black.withValues(
+                                            alpha: 0.3,
+                                          ),
                                           blurRadius: 20,
                                           spreadRadius: 5,
                                         ),
@@ -302,7 +308,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       // Barrier
                       GestureDetector(
                         onTap: () => setState(() => _showQueue = false),
-                        child: Container(color: Colors.black.withOpacity(0.3)),
+                        child: Container(
+                          color: Colors.black.withValues(alpha: 0.3),
+                        ),
                       ),
                       // Pull-up Sheet
                       NotificationListener<DraggableScrollableNotification>(
@@ -584,7 +592,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     int currentIndex, {
     bool isLandscape = false,
   }) {
-    final remaining = totalSongs > 0 ? totalSongs - currentIndex - 1 : 0;
+    //final remaining = totalSongs > 0 ? totalSongs - currentIndex - 1 : 0;
     final shuffleMode = ref.watch(
       audioPlayerProvider.select((s) => s.shuffleMode),
     );
@@ -621,7 +629,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           Row(
             children: [
               // Placeholder for symmetry
-              const opacityIconBox(
+              const OpacityIconBox(
                 child: Icon(Icons.favorite_border, size: 28),
               ),
               Expanded(
@@ -632,15 +640,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       duration: const Duration(milliseconds: 300),
                       child: Hero(
                         tag: 'title_${track?.id ?? 'none'}',
-                        child: MarqueeText(
-                          key: ValueKey('title_${track?.id ?? 'none'}'),
-                          text: track?.title ?? 'No Track Playing',
-                          style: TextStyle(
-                            fontSize: isLandscape ? 20 : 24,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                        child: Material(
+                          type: MaterialType.transparency,
+                          child: MarqueeText(
+                            key: ValueKey('title_${track?.id ?? 'none'}'),
+                            text: track?.title ?? 'No Track Playing',
+                            style: TextStyle(
+                              fontSize: isLandscape ? 20 : 24,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                            height: isLandscape ? 26 : 32,
                           ),
-                          height: isLandscape ? 26 : 32,
                         ),
                       ),
                     ),
@@ -710,7 +721,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   },
                 )
               else
-                const opacityIconBox(
+                const OpacityIconBox(
                   child: Icon(Icons.favorite_border, size: 28),
                 ),
             ],
@@ -1715,9 +1726,9 @@ class _InteractableArtworkState extends ConsumerState<_InteractableArtwork>
   }
 }
 
-class opacityIconBox extends StatelessWidget {
+class OpacityIconBox extends StatelessWidget {
   final Widget child;
-  const opacityIconBox({super.key, required this.child});
+  const OpacityIconBox({super.key, required this.child});
 
   @override
   Widget build(BuildContext context) {
