@@ -15,19 +15,26 @@ subprojects {
         if (project.hasProperty("android")) {
             val android = project.extensions.getByName("android") as com.android.build.gradle.BaseExtension
             
-            // Force SDK Version to 36 (required by latest androidx dependencies)
+            // Force SDK Version to 36
             android.compileSdkVersion(36)
             
             if (android.defaultConfig.targetSdkVersion != null && android.defaultConfig.targetSdkVersion!!.apiLevel < 35) {
                 android.defaultConfig.targetSdkVersion(35)
             }
 
-            // Force browser 1.8.0 to avoid SDK 36 requirement
+            // Force stable versions to avoid SDK 36 requirement
             project.configurations.all {
                 resolutionStrategy {
                     force("androidx.browser:browser:1.8.0")
-                    force("androidx.core:core:1.15.0")
-                    force("androidx.core:core-ktx:1.15.0")
+                    force("androidx.core:core:1.13.1")
+                    force("androidx.core:core-ktx:1.13.1")
+                    force("androidx.activity:activity:1.9.3")
+                    force("androidx.activity:activity-ktx:1.9.3")
+                    force("androidx.lifecycle:lifecycle-runtime:2.8.7")
+                    force("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
+                    force("androidx.lifecycle:lifecycle-common:2.8.7")
+                    force("androidx.lifecycle:lifecycle-viewmodel:2.8.7")
+                    force("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7")
                 }
             }
             

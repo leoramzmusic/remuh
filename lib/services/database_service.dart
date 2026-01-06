@@ -23,7 +23,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 5,
+      version: 6,
       onCreate: (db, version) async {
         Logger.info('Creating database tables...');
 
@@ -72,6 +72,21 @@ class DatabaseService {
             artworkPath TEXT
           )
         ''');
+
+        // Table for Spotify tracks (pending acquisition)
+        await db.execute('''
+          CREATE TABLE spotify_tracks (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            artist TEXT NOT NULL,
+            album TEXT,
+            imageUrl TEXT,
+            spotifyId TEXT NOT NULL,
+            playlistName TEXT,
+            isAcquired INTEGER DEFAULT 0,
+            dateImported INTEGER
+          )
+        ''');
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
@@ -116,6 +131,21 @@ class DatabaseService {
           } catch (e) {
             Logger.warning('Error adding playlist extra columns: $e');
           }
+        }
+        if (oldVersion < 6) {
+          await db.execute('''
+            CREATE TABLE spotify_tracks (
+              id TEXT PRIMARY KEY,
+              title TEXT NOT NULL,
+              artist TEXT NOT NULL,
+              album TEXT,
+              imageUrl TEXT,
+              spotifyId TEXT NOT NULL,
+              playlistName TEXT,
+              isAcquired INTEGER DEFAULT 0,
+              dateImported INTEGER
+            )
+          ''');
         }
       },
     );

@@ -59,7 +59,8 @@ class Playlist {
       coverUrl: map['coverUrl'] as String?,
       trackIds: trackIds,
       createdAt: DateTime.parse(map['createdAt'] as String),
-      isSmart: false, // Persisted playlists are never explicitly smart in DB
+      isSmart: false,
+      smartType: null,
     );
   }
 }

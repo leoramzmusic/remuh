@@ -6,6 +6,7 @@ import '../../data/repositories/playlist_repository_impl.dart';
 import '../../services/database_service.dart';
 import 'audio_player_provider.dart';
 import 'library_view_model.dart';
+import 'spotify_provider.dart';
 
 final databaseServiceProvider = Provider<DatabaseService>(
   (ref) => DatabaseService(),
@@ -33,77 +34,151 @@ class PlaylistsNotifier extends StateNotifier<AsyncValue<List<Playlist>>> {
         }
       }
     });
+
+    // Refresh when Spotify tracks change
+    _ref.listen(spotifyProvider, (previous, next) {
+      if (previous?.savedTracks.length != next.savedTracks.length) {
+        loadPlaylists();
+      }
+    });
   }
 
   Future<void> loadPlaylists() async {
     state = await AsyncValue.guard(() async {
-      final playlists = await _repository.getAllPlaylists();
+      final userPlaylists = await _repository.getAllPlaylists();
 
-      // Ensure "Favoritos" exists
-      if (!playlists.any((p) => p.name == 'Favoritos')) {
+      // Ensure "Favoritos" exists and is first
+      if (!userPlaylists.any((p) => p.name == 'Favoritos')) {
         await _repository.createPlaylist(Playlist(name: 'Favoritos'));
-        return await _repository.getAllPlaylists();
+        return await loadPlaylistsInternal();
       }
 
-      final libraryTracks = _ref.read(libraryViewModelProvider).tracks;
-      if (libraryTracks.isEmpty) {
-        return playlists;
-      }
+      return await loadPlaylistsInternal();
+    });
+  }
 
-      // 1. Recientes
-      final recentlyPlayedIds = await _repository.getRecentlyPlayedTrackIds(50);
+  Future<List<Playlist>> loadPlaylistsInternal() async {
+    final userPlaylists = await _repository.getAllPlaylists();
+    final libraryTracks = _ref.read(libraryViewModelProvider).tracks;
 
-      // 2. Más escuchadas
-      final mostPlayedIds = await _repository.getMostPlayedTrackIds(50);
+    final List<Playlist> smartPlaylists = [];
 
-      // 3. Por Género
-      final Map<String, List<String>> genreMap = {};
-      for (final track in libraryTracks) {
-        final genre = track.genre ?? 'Desconocido';
-        if (!genreMap.containsKey(genre)) {
-          genreMap[genre] = [];
-        }
-        genreMap[genre]!.add(track.id);
-      }
-
-      final smartPlaylists = [
+    // 1. Recientes (Historial)
+    final recentlyPlayedIds = await _repository.getRecentlyPlayedTrackIds(50);
+    if (recentlyPlayedIds.isNotEmpty) {
+      smartPlaylists.add(
         Playlist(
           id: -1,
           name: 'Escuchadas recientemente',
-          description: 'Tus últimas canciones reproducidas',
+          description: 'Tu historial de reproducción reciente',
           trackIds: recentlyPlayedIds,
           isSmart: true,
           smartType: 'recent',
         ),
+      );
+    }
+
+    // 2. Más escuchadas (Global)
+    final mostPlayedIds = await _repository.getMostPlayedTrackIds(50);
+    if (mostPlayedIds.isNotEmpty) {
+      smartPlaylists.add(
         Playlist(
           id: -2,
-          name: 'Más escuchadas',
-          description: 'Tus canciones favoritas por excelencia',
+          name: 'Tus favoritas (Top 50)',
+          description: 'Las canciones que más has disfrutado',
           trackIds: mostPlayedIds,
           isSmart: true,
           smartType: 'top',
         ),
-      ];
+      );
+    }
 
-      // Add genre playlists (only if they have more than 2 songs to keep it clean)
-      final genrePlaylists =
-          genreMap.entries
-              .where((e) => e.value.length >= 2)
-              .map(
-                (e) => Playlist(
-                  id: -100 - genreMap.keys.toList().indexOf(e.key),
-                  name: e.key,
-                  description: 'Colección de ${e.key}',
-                  trackIds: e.value,
-                  isSmart: true,
-                  smartType: 'genre',
-                ),
-              )
-              .toList()
-            ..sort((a, b) => a.name.compareTo(b.name));
+    // 3. Recientemente añadidas
+    final recentlyAdded = libraryTracks.toList()
+      ..sort((a, b) {
+        final dateA = a.dateAdded ?? DateTime(2000);
+        final dateB = b.dateAdded ?? DateTime(2000);
+        return dateB.compareTo(dateA);
+      });
 
-      return [...smartPlaylists, ...genrePlaylists, ...playlists];
-    });
+    final recentlyAddedIds = recentlyAdded.take(50).map((t) => t.id).toList();
+    if (recentlyAddedIds.isNotEmpty) {
+      smartPlaylists.add(
+        Playlist(
+          id: -4,
+          name: 'Recién añadidas',
+          description: 'Lo último que ha llegado a tu biblioteca',
+          trackIds: recentlyAddedIds,
+          isSmart: true,
+          smartType: 'added',
+        ),
+      );
+    }
+
+    // 4. Por conseguir (from Spotify)
+    final spotifyTracks = _ref
+        .read(spotifyProvider)
+        .savedTracks
+        .where((t) => !t.isAcquired)
+        .toList();
+
+    if (spotifyTracks.isNotEmpty) {
+      smartPlaylists.add(
+        Playlist(
+          id: -3,
+          name: 'Por conseguir',
+          description: 'Pendientes de Spotify 🛒',
+          trackIds: [], // Custom screen
+          isSmart: true,
+          smartType: 'spotify_pending',
+        ),
+      );
+    }
+
+    // 5. Por Género (Sorted by total playCount in that genre)
+    final Map<String, List<Track>> genreTracks = {};
+    for (final track in libraryTracks) {
+      final genre = track.genre ?? 'Desconocido';
+      if (!genreTracks.containsKey(genre)) {
+        genreTracks[genre] = [];
+      }
+      genreTracks[genre]!.add(track);
+    }
+
+    final genrePlaylists =
+        genreTracks.entries.where((e) => e.value.length >= 3).map((e) {
+          final totalPlays = (e.value as List<Track>).fold(
+            0,
+            (sum, t) => sum + (t.playCount),
+          );
+          return MapEntry(e.key, {'tracks': e.value, 'plays': totalPlays});
+        }).toList()..sort(
+          (a, b) =>
+              (b.value['plays'] as int).compareTo(a.value['plays'] as int),
+        );
+
+    final List<Playlist> genreSmartPlaylists = genrePlaylists.map((e) {
+      final genre = e.key;
+      final tracks = e.value['tracks'] as List<Track>;
+      return Playlist(
+        id: -100 - genreTracks.keys.toList().indexOf(genre),
+        name: '$genre Mix',
+        description: 'Lo mejor del género $genre',
+        trackIds: tracks.map((t) => t.id).toList(),
+        isSmart: true,
+        smartType: 'genre',
+      );
+    }).toList();
+
+    // Sort user playlists - Favoritos first, then alphabetical
+    final sortedUserPlaylists = userPlaylists.toList()
+      ..sort((a, b) {
+        if (a.name == 'Favoritos') return -1;
+        if (b.name == 'Favoritos') return 1;
+        return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+      });
+
+    return [...smartPlaylists, ...genreSmartPlaylists, ...sortedUserPlaylists];
   }
 
   Future<void> createPlaylist(
