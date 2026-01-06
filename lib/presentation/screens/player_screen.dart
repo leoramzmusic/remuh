@@ -45,6 +45,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       false; // Flag to skip loading on programmatic jumps
   Track? _lastStableTrack; // To avoid empty UI during transitions
 
+  // GlobalKeys to preserve state and avoid ScrollController conflicts during orientation changes
+  final GlobalKey _albumPageViewKey = GlobalKey(debugLabel: 'albumPageViewKey');
+  final GlobalKey _lyricsSheetKey = GlobalKey(debugLabel: 'lyricsSheetKey');
+  final GlobalKey _queueSheetKey = GlobalKey(debugLabel: 'queueSheetKey');
+
   @override
   void initState() {
     super.initState();
@@ -52,6 +57,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _pageController = PageController(
       initialPage: initialIndex >= 0 ? initialIndex : 0,
     );
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    _debounceTimer?.cancel();
+    super.dispose();
   }
 
   @override
@@ -171,6 +183,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               // Persistent Lyrics Layer (Stack-based)
               if (_showLyrics)
                 Positioned.fill(
+                  key: const ValueKey('player_lyrics_layer'),
                   child: Stack(
                     children: [
                       // Barrier (Tap to close)
@@ -206,6 +219,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                 return true;
                               },
                               child: DraggableScrollableSheet(
+                                key: _lyricsSheetKey,
                                 initialChildSize: 0.5,
                                 minChildSize: 0.0,
                                 maxChildSize: 1.0, // Full persistent height!
@@ -282,6 +296,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               // Persistent Queue Layer (Pull-up Sheet)
               if (_showQueue)
                 Positioned.fill(
+                  key: const ValueKey('player_queue_layer'),
                   child: Stack(
                     children: [
                       // Barrier
@@ -298,6 +313,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           return true;
                         },
                         child: DraggableScrollableSheet(
+                          key: _queueSheetKey,
                           initialChildSize: 0.6,
                           minChildSize:
                               0.4, // Keep it slightly visible or at least have a solid floor
@@ -1154,6 +1170,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
     // Using PageView for swipe support which users expect
     return PageView.builder(
+      key: _albumPageViewKey,
       controller: _pageController,
       onPageChanged: (index) {
         if (_isProgrammaticPageChange) {

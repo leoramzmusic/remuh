@@ -12,12 +12,14 @@ class EqualizerState {
   final List<BandDefinition> bands;
   final List<EqProfile> presets;
   final String? selectedPreset;
+  final int? audioSessionId;
 
   EqualizerState({
     this.isEnabled = false,
     this.bands = const [],
     List<EqProfile>? presets,
     this.selectedPreset = 'Flat',
+    this.audioSessionId,
   }) : presets = presets ?? EqualizerService.defaultPresets;
 
   EqualizerState copyWith({
@@ -25,12 +27,14 @@ class EqualizerState {
     List<BandDefinition>? bands,
     List<EqProfile>? presets,
     String? selectedPreset,
+    int? audioSessionId,
   }) {
     return EqualizerState(
       isEnabled: isEnabled ?? this.isEnabled,
       bands: bands ?? this.bands,
       presets: presets ?? this.presets,
       selectedPreset: selectedPreset ?? this.selectedPreset,
+      audioSessionId: audioSessionId ?? this.audioSessionId,
     );
   }
 }
@@ -38,43 +42,64 @@ class EqualizerState {
 class EqualizerViewModel extends StateNotifier<EqualizerState> {
   final EqualizerService _service;
   final AudioPlayerHandler _audioHandler;
+  final Ref _ref;
+  bool _isInitializing = false;
 
-  EqualizerViewModel(this._service, this._audioHandler)
+  EqualizerViewModel(this._service, this._audioHandler, this._ref)
     : super(EqualizerState()) {
     _init();
   }
 
   Future<void> _init() async {
+    // Initial attempt
     await _tryInitialize();
 
-    // Periodically check for sessionId if not initialized
+    // Listen for changes in audioSessionId to re-init if needed
+    _ref.listen(audioPlayerProvider.select((s) => s.audioSessionId), (
+      previous,
+      next,
+    ) {
+      if (next != null && next != 0 && state.bands.isEmpty) {
+        _tryInitialize();
+      }
+    });
+
+    // Fallback timer if still empty (e.g. some devices take time to report bands even with ID)
     if (state.bands.isEmpty && Platform.isAndroid) {
       _startInitializationTimer();
     }
   }
 
   Future<void> _tryInitialize() async {
-    final sessionId = _audioHandler.androidAudioSessionId;
+    if (_isInitializing) return;
+    _isInitializing = true;
 
-    if (Platform.isAndroid) {
-      if (sessionId != null && sessionId != 0) {
-        await _service.init(sessionId);
-      } else {
-        // Try with 0 as fallback or wait
-        await _service.init(0);
+    try {
+      final sessionId = _audioHandler.androidAudioSessionId;
+      state = state.copyWith(audioSessionId: sessionId);
+
+      if (Platform.isAndroid) {
+        if (sessionId != null && sessionId != 0) {
+          await _service.init(sessionId);
+        } else {
+          // Try with 0 as fallback or wait
+          await _service.init(0);
+        }
+      } else if (Platform.isIOS) {
+        await _service.init(10);
       }
-    } else if (Platform.isIOS) {
-      await _service.init(10);
-    }
 
-    final bands = await _service.getBands();
-    if (bands.isNotEmpty) {
-      state = state.copyWith(
-        bands: bands,
-        presets: EqualizerService.defaultPresets,
-        // Keep equalizer disabled by default - user must manually enable
-        isEnabled: false,
-      );
+      final bands = await _service.getBands();
+      if (bands.isNotEmpty) {
+        state = state.copyWith(
+          bands: bands,
+          presets: EqualizerService.defaultPresets,
+          // Keep equalizer disabled by default - user must manually enable
+          isEnabled: false,
+        );
+      }
+    } finally {
+      _isInitializing = false;
     }
   }
 
@@ -173,5 +198,5 @@ final equalizerProvider =
     StateNotifierProvider<EqualizerViewModel, EqualizerState>((ref) {
       final service = ref.watch(equalizerServiceProvider);
       final audioHandler = ref.watch(audioHandlerProvider);
-      return EqualizerViewModel(service, audioHandler);
+      return EqualizerViewModel(service, audioHandler, ref);
     });

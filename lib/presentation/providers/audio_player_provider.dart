@@ -98,6 +98,7 @@ class AudioPlayerState {
   final bool isFastForwarding;
   final bool isRewinding;
   final int seekMultiplier;
+  final int? audioSessionId;
 
   const AudioPlayerState({
     this.currentTrack,
@@ -115,6 +116,7 @@ class AudioPlayerState {
     this.isFastForwarding = false,
     this.isRewinding = false,
     this.seekMultiplier = 1,
+    this.audioSessionId,
   });
 
   List<Track> get effectiveQueue => queue; // Order is now always physical
@@ -136,6 +138,7 @@ class AudioPlayerState {
     bool? isFastForwarding,
     bool? isRewinding,
     int? seekMultiplier,
+    int? audioSessionId,
   }) {
     return AudioPlayerState(
       currentTrack: currentTrack ?? this.currentTrack,
@@ -153,6 +156,7 @@ class AudioPlayerState {
       isFastForwarding: isFastForwarding ?? this.isFastForwarding,
       isRewinding: isRewinding ?? this.isRewinding,
       seekMultiplier: seekMultiplier ?? this.seekMultiplier,
+      audioSessionId: audioSessionId ?? this.audioSessionId,
     );
   }
 
@@ -441,8 +445,19 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
 
     // Notify Equalizer when sessionId is ready (Android)
     _repository.playbackStateStream.listen((_) {
-      // Periodically check if sessionId is available if it wasn't before
+      _syncAudioSessionId();
     });
+    _repository.currentTrackStream.listen((_) {
+      _syncAudioSessionId();
+    });
+    _syncAudioSessionId();
+  }
+
+  void _syncAudioSessionId() {
+    final sessionId = _repository.androidAudioSessionId;
+    if (sessionId != state.audioSessionId) {
+      state = state.copyWith(audioSessionId: sessionId);
+    }
   }
 
   /// Cambiar modo de repetición

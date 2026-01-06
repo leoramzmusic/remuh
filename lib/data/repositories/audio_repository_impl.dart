@@ -302,4 +302,7 @@ class AudioRepositoryImpl implements AudioRepository {
       return false;
     }
   }
+
+  @override
+  int? get androidAudioSessionId => _audioHandler.androidAudioSessionId;
 }

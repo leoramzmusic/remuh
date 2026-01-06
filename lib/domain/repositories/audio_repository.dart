@@ -68,4 +68,7 @@ abstract class AudioRepository {
 
   /// Eliminar permanentemente el archivo de una pista
   Future<bool> deleteTrackFile(Track track);
+
+  /// Obtener ID de sesión de audio de Android
+  int? get androidAudioSessionId;
 }

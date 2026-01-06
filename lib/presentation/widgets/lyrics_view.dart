@@ -70,29 +70,10 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (lyricsState.lines.isEmpty) {
-      return LayoutBuilder(
-        builder: (context, constraints) {
-          return SingleChildScrollView(
-            controller: widget.scrollController,
-            physics: const AlwaysScrollableScrollPhysics(),
-            child: Container(
-              height: constraints.maxHeight,
-              alignment: Alignment.center,
-              padding: const EdgeInsets.symmetric(horizontal: 40),
-              child: Text(
-                lyricsState.error ?? 'No hay letras disponibles',
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.white70),
-              ),
-            ),
-          );
-        },
-      );
-    }
+    final bool isEmpty = lyricsState.lines.isEmpty;
 
-    // Sync keys with lines
-    if (_itemKeys.length != lyricsState.lines.length) {
+    // Sync keys with lines if not empty
+    if (!isEmpty && _itemKeys.length != lyricsState.lines.length) {
       _itemKeys.clear();
       _itemKeys.addAll(
         List.generate(lyricsState.lines.length, (_) => GlobalKey()),
@@ -116,18 +97,33 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
           ),
         ),
 
-        // Scrollable Lyrics
+        // Scrollable Content (Unified as ListView)
         Expanded(
           child: ListView.builder(
-            key: ValueKey(activeIndex), // Force rebuild to update styling
+            key: GlobalKey(debugLabel: 'lyrics_unified_list_view'),
             controller: widget.scrollController,
-            itemCount: lyricsState.lines.length + 1,
+            physics: const AlwaysScrollableScrollPhysics(),
+            itemCount: isEmpty ? 1 : lyricsState.lines.length,
             padding: EdgeInsets.only(
               top: MediaQuery.of(context).size.height * 0.1,
               bottom: MediaQuery.of(context).size.height * 0.2,
             ),
-            physics: const AlwaysScrollableScrollPhysics(),
             itemBuilder: (context, index) {
+              if (isEmpty) {
+                return Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 40,
+                    vertical: 100,
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    lyricsState.error ?? 'No hay letras disponibles',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.white70, fontSize: 16),
+                  ),
+                );
+              }
+
               final line = lyricsState.lines[index];
               final isActive = index == activeIndex;
 

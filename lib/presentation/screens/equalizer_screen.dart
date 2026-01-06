@@ -65,16 +65,17 @@ class EqualizerScreen extends ConsumerWidget {
     EqualizerViewModel eqNotifier,
     AudioPlayerState audioState,
   ) {
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Left Column: Track Info and Presets
-          Expanded(
-            flex: 2,
+          SizedBox(
+            width: 250,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 if (audioState.currentTrack != null) ...[
                   Row(
@@ -116,7 +117,7 @@ class EqualizerScreen extends ConsumerWidget {
                   const SizedBox(height: 32),
                 ],
                 _buildPresetsSection(context, eqState, eqNotifier),
-                const Spacer(),
+                const SizedBox(height: 32),
                 Material(
                   color: Colors.white.withValues(alpha: 0.05),
                   borderRadius: BorderRadius.circular(16),
@@ -149,7 +150,6 @@ class EqualizerScreen extends ConsumerWidget {
           const SizedBox(width: 32),
           // Right Column: Sliders
           Expanded(
-            flex: 3,
             child: Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -199,16 +199,22 @@ class EqualizerScreen extends ConsumerWidget {
         ),
         const SizedBox(height: 24),
         if (eqState.bands.isEmpty)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 40),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 40),
             child: Center(
               child: Column(
                 children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 24),
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 24),
                   Text(
-                    'Obteniendo bandas...',
-                    style: TextStyle(color: Colors.white70),
+                    'Obteniendo bandas... (Session: ${eqState.audioSessionId ?? 0})',
+                    style: const TextStyle(color: Colors.white70),
+                  ),
+                  const SizedBox(height: 16),
+                  TextButton.icon(
+                    onPressed: () => eqNotifier.retryInit(),
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Reintentar'),
                   ),
                 ],
               ),
@@ -216,7 +222,7 @@ class EqualizerScreen extends ConsumerWidget {
           )
         else
           SizedBox(
-            height: 240, // Reduced height for landscape compatibility
+            height: 200, // Slightly reduced height
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: eqState.bands.asMap().entries.map((entry) {
