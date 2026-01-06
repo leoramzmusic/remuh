@@ -35,6 +35,7 @@ class LocalAudioSource {
           title: song.title,
           artist: song.artist ?? 'Unknown Artist',
           album: song.album ?? 'Unknown Album',
+          genre: song.genre,
           duration: Duration(milliseconds: song.duration ?? 0),
           filePath: song.data,
           fileUrl: song.uri,

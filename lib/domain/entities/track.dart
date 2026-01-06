@@ -4,6 +4,7 @@ class Track {
   final String title;
   final String? artist;
   final String? album;
+  final String? genre;
   final Duration? duration;
   final String? artworkPath;
   final String filePath;
@@ -19,6 +20,7 @@ class Track {
     required this.title,
     this.artist,
     this.album,
+    this.genre,
     this.duration,
     this.artworkPath,
     required this.filePath,
@@ -35,6 +37,7 @@ class Track {
     String? title,
     String? artist,
     String? album,
+    String? genre,
     Duration? duration,
     String? artworkPath,
     String? filePath,
@@ -51,6 +54,7 @@ class Track {
       title: title ?? this.title,
       artist: artist ?? this.artist,
       album: album ?? this.album,
+      genre: genre ?? this.genre,
       duration: duration ?? this.duration,
       artworkPath: clearArtworkPath ? null : (artworkPath ?? this.artworkPath),
       filePath: filePath ?? this.filePath,

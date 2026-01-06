@@ -18,6 +18,9 @@ class PlaylistRepositoryImpl implements PlaylistRepository {
       final trackIds = await getTrackIdsForPlaylist(map['id'] as int);
       playlists.add(Playlist.fromMap(map, trackIds));
     }
+
+    // Add smart playlists (not persisted name-wise in the same way, but surfaced here)
+    // Actually, we can just return the persisted ones for now and handle smart lists in the notifier
     return playlists;
   }
 
@@ -99,6 +102,32 @@ class PlaylistRepositoryImpl implements PlaylistRepository {
       orderBy: 'position ASC',
     );
 
+    return result.map((row) => row['trackId'] as String).toList();
+  }
+
+  @override
+  Future<List<String>> getRecentlyPlayedTrackIds(int limit) async {
+    final db = await _dbService.database;
+    final List<Map<String, dynamic>> result = await db.query(
+      'track_stats',
+      columns: ['trackId'],
+      where: 'lastPlayedAt IS NOT NULL',
+      orderBy: 'lastPlayedAt DESC',
+      limit: limit,
+    );
+    return result.map((row) => row['trackId'] as String).toList();
+  }
+
+  @override
+  Future<List<String>> getMostPlayedTrackIds(int limit) async {
+    final db = await _dbService.database;
+    final List<Map<String, dynamic>> result = await db.query(
+      'track_stats',
+      columns: ['trackId'],
+      where: 'playCount > 0',
+      orderBy: 'playCount DESC',
+      limit: limit,
+    );
     return result.map((row) => row['trackId'] as String).toList();
   }
 }

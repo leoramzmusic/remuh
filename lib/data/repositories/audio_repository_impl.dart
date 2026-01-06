@@ -199,6 +199,7 @@ class AudioRepositoryImpl implements AudioRepository {
           album: track.album ?? '',
           title: track.title,
           artist: track.artist ?? '',
+          genre: track.genre,
           duration: track.duration,
           // artUri dejamos que se cargue dinámicamente o cuando sea la pista activa
           extras: {'url': track.fileUrl, 'path': track.filePath},
@@ -268,6 +269,7 @@ class AudioRepositoryImpl implements AudioRepository {
       title: item.title,
       artist: item.artist,
       album: item.album,
+      genre: item.genre,
       duration: item.duration ?? Duration.zero,
       fileUrl: item.extras?['url'] as String?,
       filePath: item.extras?['path'] as String? ?? '',

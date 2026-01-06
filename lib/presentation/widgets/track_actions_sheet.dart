@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/entities/track.dart';
 import '../providers/audio_player_provider.dart';
 import '../providers/library_view_model.dart';
+import '../providers/playlists_provider.dart';
 import '../screens/entity_detail_screen.dart';
 import 'track_artwork.dart';
 import 'equalizer_sheet.dart';
@@ -11,8 +12,9 @@ import 'add_to_playlist_sheet.dart';
 
 class TrackActionsSheet extends ConsumerWidget {
   final Track track;
+  final int? playlistId;
 
-  const TrackActionsSheet({super.key, required this.track});
+  const TrackActionsSheet({super.key, required this.track, this.playlistId});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -98,6 +100,23 @@ class TrackActionsSheet extends ConsumerWidget {
                       );
                     },
                   ),
+                  if (playlistId != null &&
+                      playlistId! > 0) // Only for real user playlists
+                    _ActionItem(
+                      icon: Icons.playlist_remove_rounded,
+                      label: 'Quitar de esta lista',
+                      onTap: () {
+                        Navigator.pop(context);
+                        ref
+                            .read(playlistsProvider.notifier)
+                            .removeTrackFromPlaylist(playlistId!, track.id);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Eliminado de la lista'),
+                          ),
+                        );
+                      },
+                    ),
                   _ActionItem(
                     icon: track.isFavorite
                         ? Icons.favorite

@@ -23,7 +23,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 4,
+      version: 5,
       onCreate: (db, version) async {
         Logger.info('Creating database tables...');
 
@@ -32,6 +32,8 @@ class DatabaseService {
           CREATE TABLE playlists (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
+            description TEXT,
+            coverUrl TEXT,
             createdAt TEXT NOT NULL
           )
         ''');
@@ -103,6 +105,16 @@ class DatabaseService {
           } catch (e) {
             // Ignore if column already exists
             Logger.warning('Error adding artworkPath column: $e');
+          }
+        }
+        if (oldVersion < 5) {
+          try {
+            await db.execute(
+              'ALTER TABLE playlists ADD COLUMN description TEXT',
+            );
+            await db.execute('ALTER TABLE playlists ADD COLUMN coverUrl TEXT');
+          } catch (e) {
+            Logger.warning('Error adding playlist extra columns: $e');
           }
         }
       },
