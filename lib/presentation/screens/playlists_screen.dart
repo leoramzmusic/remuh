@@ -127,7 +127,25 @@ class PlaylistsScreen extends ConsumerWidget {
                   icon: Icons.link_rounded,
                   count: exportedPlaylists.length,
                 ),
-                if (exportedPlaylists.isEmpty)
+                if (!spotifyState.isAuthenticated)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: ElevatedButton.icon(
+                        onPressed: () =>
+                            ref.read(spotifyProvider.notifier).login(),
+                        icon: const Icon(Icons.login_rounded),
+                        label: const Text('Conectar cuenta de Spotify'),
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
+                  )
+                else if (exportedPlaylists.isEmpty)
                   const SliverToBoxAdapter(
                     child: Padding(
                       padding: EdgeInsets.symmetric(
@@ -135,7 +153,7 @@ class PlaylistsScreen extends ConsumerWidget {
                         horizontal: 16,
                       ),
                       child: Text(
-                        'Conectado a Spotify. No hay canciones pendientes de importar.',
+                        'Conectado a Spotify. No hay playlists importadas.',
                         style: TextStyle(color: Colors.white24, fontSize: 13),
                         textAlign: TextAlign.center,
                       ),
@@ -308,13 +326,21 @@ class _PlaylistTile extends ConsumerWidget {
       if (playlist.smartType == 'favorites') return Icons.favorite_rounded;
       if (playlist.smartType == 'added') return Icons.new_releases_rounded;
       if (playlist.smartType == 'top') return Icons.trending_up_rounded;
+      if (playlist.smartType?.startsWith('spotify') ?? false) {
+        return Icons.link_rounded;
+      }
       return Icons.psychology_rounded;
     }
     return Icons.playlist_play_rounded;
   }
 
   String? _getLabel() {
-    if (section == 'smart') return 'AUTO';
+    if (section == 'smart') {
+      if (playlist.smartType?.startsWith('spotify') ?? false) {
+        return 'IMPORTADA';
+      }
+      return 'AUTO';
+    }
     if (section == 'exported') return 'IMPORTADA';
     if (section == 'genre') return 'GÉNERO';
     return null;
@@ -500,6 +526,12 @@ class _PlaylistTile extends ConsumerWidget {
                     ),
                     onPressed: () => _toggleVisibility(context, ref),
                     color: Colors.white.withValues(alpha: 0.4),
+                  )
+                else if (playlist.smartType == 'spotify_exported')
+                  const Icon(
+                    Icons.sync_rounded,
+                    color: Colors.white24,
+                    size: 22,
                   )
                 else
                   Icon(

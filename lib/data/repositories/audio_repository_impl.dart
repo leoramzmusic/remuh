@@ -210,6 +210,11 @@ class AudioRepositoryImpl implements AudioRepository {
   }
 
   @override
+  Future<void> reorderQueue(int oldIndex, int newIndex) async {
+    await _audioHandler.moveQueueItem(oldIndex, newIndex);
+  }
+
+  @override
   Stream<int> get indexChangeStream => _audioHandler.indexChangeStream;
 
   @override

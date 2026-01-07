@@ -63,6 +63,9 @@ abstract class AudioRepository {
   /// Actualizar la cola de reproducción para gapless playback
   Future<void> updateQueue(List<Track> tracks, {int initialIndex = 0});
 
+  /// Reordenar un elemento de la cola
+  Future<void> reorderQueue(int oldIndex, int newIndex);
+
   /// Stream para cambios de índice automáticos (gapless)
   Stream<int> get indexChangeStream;
 

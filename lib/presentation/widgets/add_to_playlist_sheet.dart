@@ -39,7 +39,6 @@ class _AddToPlaylistSheetState extends ConsumerState<AddToPlaylistSheet> {
         );
         break;
       case PlaylistSortOption.recentlyUpdated:
-      default:
         sorted.sort((a, b) => b.createdAt.compareTo(a.createdAt));
         break;
     }

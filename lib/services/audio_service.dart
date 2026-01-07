@@ -10,7 +10,7 @@ import '../domain/repositories/audio_repository.dart';
 /// Handler de audio para background playback
 class AudioPlayerHandler extends BaseAudioHandler with QueueHandler {
   final _player = AudioPlayer();
-  final _playlist = ConcatenatingAudioSource(
+  ConcatenatingAudioSource _playlist = ConcatenatingAudioSource(
     useLazyPreparation: true,
     children: [],
   );
@@ -174,11 +174,34 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler {
     }).toList();
 
     // Reemplazamos toda la fuente para asegurar el initialIndex y gapless
+    _playlist = ConcatenatingAudioSource(
+      useLazyPreparation: true,
+      children: newSources,
+    );
     await _player.setAudioSource(
-      ConcatenatingAudioSource(useLazyPreparation: true, children: newSources),
+      _playlist,
       initialIndex: initialIndex,
       initialPosition: Duration.zero,
     );
+  }
+
+  /// Mueve un elemento en la cola sin reconstruirla por completo
+  Future<void> moveQueueItem(int oldIndex, int newIndex) async {
+    if (oldIndex < 0 ||
+        oldIndex >= _playlist.length ||
+        newIndex < 0 ||
+        newIndex >= _playlist.length) {
+      return;
+    }
+
+    // Mover en la fuente de audio (just_audio)
+    await _playlist.move(oldIndex, newIndex);
+
+    // Mover en la cola de audio_service
+    final List<MediaItem> currentQueue = List.from(queue.value);
+    final MediaItem item = currentQueue.removeAt(oldIndex);
+    currentQueue.insert(newIndex, item);
+    queue.add(currentQueue);
   }
 
   // Legacy support for single track load (still used by repository for quick plays)

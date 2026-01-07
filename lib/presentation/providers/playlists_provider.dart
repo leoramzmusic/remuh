@@ -268,27 +268,55 @@ class PlaylistsNotifier extends StateNotifier<AsyncValue<List<Playlist>>> {
       );
     }
 
-    // 4. Spotify Pending (Por conseguir)
-    // We already have spotifyProvider, but loadPlaylists is triggered when it changes.
+    // 4. Spotify Section (Exportadas)
     final spotifyState = _ref.read(spotifyProvider);
-    final pendingSpotifyTracks = spotifyState.savedTracks
-        .where((t) => !t.isAcquired)
-        .toList();
+    final allSpotifyTracks = spotifyState.savedTracks;
 
-    if (pendingSpotifyTracks.isNotEmpty) {
+    // A. "Por conseguir" - Summary of all pending tracks
+    final totalPending = allSpotifyTracks.where((t) => !t.isAcquired).length;
+    if (totalPending > 0) {
       smartPlaylists.add(
         Playlist(
           id: -300,
           name: 'Por conseguir',
-          trackIds:
-              [], // Tracks are managed separately in spotify_pending_tracks_screen
+          trackIds: [], // Managed in SpotifyPendingTracksScreen
           isSmart: true,
           smartType: 'spotify_pending',
           canBeDeleted: false,
           canBeHidden: true,
-          description: 'Canciones pendientes de Spotify',
+          description: '$totalPending canciones pendientes de descargar',
         ),
       );
+    }
+
+    // B. Individual Exported Playlists
+    for (var sPlaylist in spotifyState.playlists) {
+      final pName = sPlaylist['name'] as String;
+      final imageUrl =
+          (sPlaylist['images'] as List?)?.firstOrNull?['url'] as String?;
+
+      // Count tracks for this specific playlist in our local spotify_tracks db
+      final pTracks = allSpotifyTracks.where((t) => t.playlistName == pName);
+      final pPending = pTracks.where((t) => !t.isAcquired).length;
+      final pAcquired = pTracks.where((t) => t.isAcquired).length;
+
+      if (pTracks.isNotEmpty) {
+        smartPlaylists.add(
+          Playlist(
+            id: -400 - sPlaylist.hashCode,
+            name: pName,
+            description: pPending > 0
+                ? '$pPending pendientes • $pAcquired ya en biblioteca'
+                : 'Sincronizada • $pAcquired canciones',
+            coverUrl: imageUrl,
+            isSmart: true,
+            smartType: 'spotify_exported',
+            canBeDeleted: false,
+            canBeHidden: true,
+            trackIds: [],
+          ),
+        );
+      }
     }
 
     // --- Filter Hidden Smart Playlists ---
@@ -299,8 +327,9 @@ class PlaylistsNotifier extends StateNotifier<AsyncValue<List<Playlist>>> {
       String key = p.name;
       if (p.smartType == 'genre') {
         key = 'genre_${p.name}';
-      } else if (p.smartType == 'spotify_pending') {
-        key = 'spotify_pending';
+      } else if (p.smartType == 'spotify_pending' ||
+          p.smartType == 'spotify_exported') {
+        key = 'spotify_${p.name}';
       }
       // If the key is in hiddenKeys, mark playlist as hidden
       return p.copyWith(isHidden: hiddenKeys.contains(key));

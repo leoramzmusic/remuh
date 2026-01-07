@@ -752,30 +752,43 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
   }
 
   /// Reordenar la cola
-  void reorderQueue(int oldIndex, int newIndex) {
+  Future<void> reorderQueue(int oldIndex, int newIndex) async {
+    int actualNewIndex = newIndex;
     if (oldIndex < newIndex) {
-      newIndex -= 1;
+      actualNewIndex -= 1;
     }
 
     final List<Track> newQueue = List.from(state.queue);
     final Track track = newQueue.removeAt(oldIndex);
-    newQueue.insert(newIndex, track);
+    newQueue.insert(actualNewIndex, track);
 
     // Actualizar el índice actual si la pista que suena se movió
     int newCurrentIndex = state.currentIndex;
     if (oldIndex == state.currentIndex) {
-      newCurrentIndex = newIndex;
+      newCurrentIndex = actualNewIndex;
     } else if (oldIndex < state.currentIndex &&
-        newIndex >= state.currentIndex) {
+        actualNewIndex >= state.currentIndex) {
       newCurrentIndex -= 1;
     } else if (oldIndex > state.currentIndex &&
-        newIndex <= state.currentIndex) {
+        actualNewIndex <= state.currentIndex) {
       newCurrentIndex += 1;
     }
 
-    state = state.copyWith(queue: newQueue, currentIndex: newCurrentIndex);
+    state = state.copyWith(
+      queue: newQueue,
+      currentIndex: newCurrentIndex,
+      currentTrack: newCurrentIndex >= 0 && newCurrentIndex < newQueue.length
+          ? newQueue[newCurrentIndex]
+          : state.currentTrack,
+    );
 
-    _saveState(force: true);
+    try {
+      // Sincronizar con el motor
+      await _repository.reorderQueue(oldIndex, actualNewIndex);
+      _saveState(force: true);
+    } catch (e) {
+      Logger.error('Error synchronizing queue reorder', e);
+    }
   }
 
   /// Quitar pista de la cola

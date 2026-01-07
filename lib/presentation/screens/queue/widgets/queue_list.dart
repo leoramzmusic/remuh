@@ -50,15 +50,12 @@ class QueueList extends ConsumerWidget {
 
     return ReorderableListView.builder(
       scrollController: scrollController,
+      shrinkWrap: true,
       itemCount: effectiveQueue.length,
       padding: const EdgeInsets.only(bottom: 32),
-      onReorder: shuffleMode
-          ? (old, next) {}
-          : (oldIndex, newIndex) {
-              ref
-                  .read(audioPlayerProvider.notifier)
-                  .reorderQueue(oldIndex, newIndex);
-            },
+      onReorder: (oldIndex, newIndex) {
+        ref.read(audioPlayerProvider.notifier).reorderQueue(oldIndex, newIndex);
+      },
       itemBuilder: (context, index) {
         final track = effectiveQueue[index];
         return QueueItemTile(
@@ -69,7 +66,7 @@ class QueueList extends ConsumerWidget {
           contextQueue: effectiveQueue,
           isFiltered: false,
           shuffleMode: shuffleMode,
-          key: ValueKey('queue_${track.id}_$index'),
+          key: ValueKey('queue_${track.id}_${identityHashCode(track)}'),
         );
       },
     );
