@@ -8,6 +8,7 @@ import '../providers/playlists_provider.dart';
 import '../widgets/track_artwork.dart';
 import '../widgets/library/folders_view.dart';
 import '../widgets/library/genres_view.dart';
+import '../widgets/spotify_view.dart';
 import '../../domain/entities/playlist.dart';
 import '../providers/customization_provider.dart';
 import '../../core/theme/icon_sets.dart';
@@ -15,13 +16,43 @@ import 'entity_detail_screen.dart';
 import 'player_screen.dart';
 import '../widgets/app_sidebar.dart';
 import '../widgets/track_contextual_menu.dart';
+import '../widgets/marquee_text.dart';
 import '../delegates/library_search_delegate.dart';
+import '../widgets/library/magnifying_tab_bar.dart';
 
-class LibraryScreen extends ConsumerWidget {
+class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<LibraryScreen> createState() => _LibraryScreenState();
+}
+
+class _LibraryScreenState extends ConsumerState<LibraryScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  final List<String> _tabs = [
+    'Canciones',
+    'Álbumes',
+    'Artistas',
+    'Carpetas',
+    'Géneros',
+    'Spotify',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: _tabs.length, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final libraryState = ref.watch(libraryViewModelProvider);
 
     // Escuchar cambios para mostrar feedback de escaneo
@@ -48,93 +79,75 @@ class LibraryScreen extends ConsumerWidget {
       }
     });
 
-    return DefaultTabController(
-      length: 5,
-      child: Consumer(
-        builder: (context, ref, _) {
-          final iconStyle = ref.watch(
-            customizationProvider.select((s) => s.iconStyle),
-          );
-          final icons = AppIconSet.fromStyle(iconStyle);
+    final iconStyle = ref.watch(
+      customizationProvider.select((s) => s.iconStyle),
+    );
+    final icons = AppIconSet.fromStyle(iconStyle);
+    final isGrid = ref.watch(isGridViewProvider);
 
-          final isGrid = ref.watch(isGridViewProvider);
-
-          return Scaffold(
-            drawer: const AppSidebar(),
-            appBar: AppBar(
-              title: Text(
-                'REMUH',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 2,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-              ),
-              actions: [
-                IconButton(
-                  icon: Icon(
-                    isGrid ? Icons.view_list_rounded : Icons.grid_view_rounded,
-                  ),
-                  onPressed: () {
-                    ref.read(isGridViewProvider.notifier).state = !isGrid;
-                  },
-                  tooltip: isGrid ? 'Vista lista' : 'Vista cuadrícula',
-                ),
-                IconButton(
-                  icon: const Icon(Icons.search_rounded),
-                  onPressed: () {
-                    showSearch(
-                      context: context,
-                      delegate: LibrarySearchDelegate(ref),
-                    );
-                  },
-                  tooltip: 'Buscar',
-                ),
-                IconButton(
-                  icon: const Icon(Icons.refresh_rounded),
-                  onPressed: libraryState.isScanning
-                      ? null
-                      : () => ref
-                            .read(libraryViewModelProvider.notifier)
-                            .scanLibrary(),
-                  tooltip: 'Actualizar biblioteca',
-                ),
-              ],
-              bottom: const TabBar(
-                isScrollable: true,
-                tabs: [
-                  Tab(text: 'Canciones'),
-                  Tab(text: 'Álbumes'),
-                  Tab(text: 'Artistas'),
-                  Tab(text: 'Carpetas'),
-                  Tab(text: 'Géneros'),
-                ],
-              ),
+    return Scaffold(
+      drawer: const AppSidebar(),
+      appBar: AppBar(
+        title: Text(
+          'REMUH',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            letterSpacing: 2,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+        ),
+        actions: [
+          IconButton(
+            icon: Icon(
+              isGrid ? Icons.view_list_rounded : Icons.grid_view_rounded,
             ),
-            body: RefreshIndicator(
-              onRefresh: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Actualizando tu biblioteca...'),
-                    duration: Duration(seconds: 2),
-                  ),
-                );
-                return ref
-                    .read(libraryViewModelProvider.notifier)
-                    .scanLibrary();
-              },
-              child: TabBarView(
-                children: [
-                  _buildTracksList(context, ref, libraryState, icons),
-                  _buildAlbumsList(context, ref, libraryState, icons),
-                  _buildArtistsList(context, ref, libraryState, icons),
-                  const FoldersView(),
-                  const GenresView(),
-                ],
-              ),
+            onPressed: () {
+              ref.read(isGridViewProvider.notifier).state = !isGrid;
+            },
+            tooltip: isGrid ? 'Vista lista' : 'Vista cuadrícula',
+          ),
+          IconButton(
+            icon: const Icon(Icons.search_rounded),
+            onPressed: () {
+              showSearch(
+                context: context,
+                delegate: LibrarySearchDelegate(ref),
+              );
+            },
+            tooltip: 'Buscar',
+          ),
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded),
+            onPressed: libraryState.isScanning
+                ? null
+                : () =>
+                      ref.read(libraryViewModelProvider.notifier).scanLibrary(),
+            tooltip: 'Actualizar biblioteca',
+          ),
+        ],
+        bottom: MagnifyingTabBar(controller: _tabController, tabs: _tabs),
+      ),
+      body: RefreshIndicator(
+        onRefresh: () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Actualizando tu biblioteca...'),
+              duration: Duration(seconds: 2),
             ),
           );
+          return ref.read(libraryViewModelProvider.notifier).scanLibrary();
         },
+        child: TabBarView(
+          controller: _tabController,
+          children: [
+            _buildTracksList(context, ref, libraryState, icons),
+            _buildAlbumsList(context, ref, libraryState, icons),
+            _buildArtistsList(context, ref, libraryState, icons),
+            const FoldersView(),
+            const GenresView(),
+            const SpotifyView(),
+          ],
+        ),
       ),
     );
   }
@@ -171,96 +184,161 @@ class LibraryScreen extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // Shuffle icon + label
-                  // Shuffle button with visual feedback
-                  Consumer(
-                    builder: (context, ref, _) {
-                      final isShuffleActive = ref.watch(
-                        audioPlayerProvider.select((s) => s.shuffleMode),
-                      );
-                      final primaryColor = Theme.of(
-                        context,
-                      ).colorScheme.primary;
+                  // Play button with current sort label
+                  Expanded(
+                    child: Consumer(
+                      builder: (context, ref, _) {
+                        final sortOption = ref.watch(sortOptionProvider);
+                        final label = getSortLabel(sortOption).toUpperCase();
+                        final primaryColor = Theme.of(
+                          context,
+                        ).colorScheme.primary;
 
-                      return Material(
-                        color: isShuffleActive
-                            ? primaryColor.withValues(alpha: 0.15)
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(12),
-                        child: InkWell(
-                          onTap: () {
-                            final notifier = ref.read(
-                              audioPlayerProvider.notifier,
-                            );
-                            int shuffleStartIdx = 0;
-                            if (tracks.length > 1) {
-                              shuffleStartIdx = math.Random().nextInt(
-                                tracks.length,
-                              );
-                            }
-                            final startTrack = tracks[shuffleStartIdx];
-
-                            notifier.loadPlaylist(
-                              tracks,
-                              shuffleStartIdx,
-                              startShuffled: true,
-                            );
-
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Reproducción Aleatoria Activa desde ${startTrack.title}',
-                                ),
-                                backgroundColor: primaryColor,
-                                duration: const Duration(seconds: 2),
-                              ),
-                            );
-
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const PlayerScreen(),
-                              ),
-                            );
-                          },
+                        return Material(
+                          color: primaryColor.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 8,
+                          child: InkWell(
+                            onTap: () {
+                              final notifier = ref.read(
+                                audioPlayerProvider.notifier,
+                              );
+                              if (tracks.isNotEmpty) {
+                                notifier.loadPlaylist(tracks, 0);
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const PlayerScreen(),
+                                  ),
+                                );
+                              }
+                            },
+                            borderRadius: BorderRadius.circular(12),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.play_arrow_rounded,
+                                    color: primaryColor,
+                                    size: 24,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Flexible(
+                                    child: MarqueeText(
+                                      text: 'REPRODUCIR ($label)',
+                                      height: 20,
+                                      style: TextStyle(
+                                        color: primaryColor,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 1.0,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.shuffle,
-                                  color: isShuffleActive
-                                      ? primaryColor
-                                      : Colors.white,
-                                  size: 20,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // Shuffle button
+                  Expanded(
+                    child: Consumer(
+                      builder: (context, ref, _) {
+                        final isShuffleActive = ref.watch(
+                          audioPlayerProvider.select((s) => s.shuffleMode),
+                        );
+                        final primaryColor = Theme.of(
+                          context,
+                        ).colorScheme.primary;
+
+                        return Material(
+                          color: isShuffleActive
+                              ? primaryColor.withValues(alpha: 0.15)
+                              : Colors.white.withValues(alpha: 0.05),
+                          borderRadius: BorderRadius.circular(12),
+                          child: InkWell(
+                            onTap: () {
+                              final notifier = ref.read(
+                                audioPlayerProvider.notifier,
+                              );
+                              int shuffleStartIdx = 0;
+                              if (tracks.length > 1) {
+                                shuffleStartIdx = math.Random().nextInt(
+                                  tracks.length,
+                                );
+                              }
+                              final startTrack = tracks[shuffleStartIdx];
+
+                              notifier.loadPlaylist(
+                                tracks,
+                                shuffleStartIdx,
+                                startShuffled: true,
+                              );
+
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Reproducción Aleatoria Activa desde ${startTrack.title}',
+                                  ),
+                                  backgroundColor: primaryColor,
+                                  duration: const Duration(seconds: 2),
                                 ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'REPRODUCCIÓN ALEATORIA',
-                                  style: TextStyle(
+                              );
+
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const PlayerScreen(),
+                                ),
+                              );
+                            },
+                            borderRadius: BorderRadius.circular(12),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.shuffle,
                                     color: isShuffleActive
                                         ? primaryColor
                                         : Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    letterSpacing: 1.2,
-                                    fontSize: 13,
+                                    size: 20,
                                   ),
-                                ),
-                              ],
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'ALEATORIO',
+                                    style: TextStyle(
+                                      color: isShuffleActive
+                                          ? primaryColor
+                                          : Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 1.0,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                      );
-                    },
+                        );
+                      },
+                    ),
                   ),
-
-                  // Ordenar icono con combo desplegable
+                  const SizedBox(width: 8),
+                  // Sort icon Button
                   Consumer(
                     builder: (context, ref, _) {
                       return PopupMenuButton<SortOption>(
@@ -269,7 +347,9 @@ class LibraryScreen extends ConsumerWidget {
                           color: Colors.white70,
                         ),
                         onSelected: (option) {
-                          ref.read(sortOptionProvider.notifier).state = option;
+                          ref
+                              .read(sortOptionProvider.notifier)
+                              .setSortOption(option);
                         },
                         itemBuilder: (context) => [
                           const PopupMenuItem(

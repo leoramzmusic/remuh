@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../domain/entities/spotify_track.dart';
+import '../../domain/entities/spotify_playlist.dart';
 import '../../domain/repositories/spotify_repository.dart';
 import '../../data/repositories/spotify_repository_impl.dart';
 import '../../services/spotify_service.dart';
@@ -20,26 +21,34 @@ class SpotifyState {
   final bool isAuthenticated;
   final bool isSyncing;
   final List<SpotifyTrack> savedTracks;
-  final List<Map<String, dynamic>> playlists;
+  final List<SpotifyPlaylist> userPlaylists;
+  final List<SpotifyPlaylist> featuredPlaylists;
+  final List<SpotifyPlaylist> categoryPlaylists;
 
   SpotifyState({
     this.isAuthenticated = false,
     this.isSyncing = false,
     this.savedTracks = const [],
-    this.playlists = const [],
+    this.userPlaylists = const [],
+    this.featuredPlaylists = const [],
+    this.categoryPlaylists = const [],
   });
 
   SpotifyState copyWith({
     bool? isAuthenticated,
     bool? isSyncing,
     List<SpotifyTrack>? savedTracks,
-    List<Map<String, dynamic>>? playlists,
+    List<SpotifyPlaylist>? userPlaylists,
+    List<SpotifyPlaylist>? featuredPlaylists,
+    List<SpotifyPlaylist>? categoryPlaylists,
   }) {
     return SpotifyState(
       isAuthenticated: isAuthenticated ?? this.isAuthenticated,
       isSyncing: isSyncing ?? this.isSyncing,
       savedTracks: savedTracks ?? this.savedTracks,
-      playlists: playlists ?? this.playlists,
+      userPlaylists: userPlaylists ?? this.userPlaylists,
+      featuredPlaylists: featuredPlaylists ?? this.featuredPlaylists,
+      categoryPlaylists: categoryPlaylists ?? this.categoryPlaylists,
     );
   }
 }
@@ -73,9 +82,27 @@ class SpotifyNotifier extends StateNotifier<SpotifyState> {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('spotify_token', token);
 
-      final playlists = await _service.getUserPlaylists(token);
-      state = state.copyWith(isAuthenticated: true, playlists: playlists);
+      await _fetchInitialSpotifyData(token);
     }
+  }
+
+  Future<void> _fetchInitialSpotifyData(String token) async {
+    final userRaw = await _service.getUserPlaylists(token);
+    final featuredRaw = await _service.getFeaturedPlaylists(token);
+    final workoutRaw = await _service.getCategoryPlaylists(token, 'workout');
+
+    state = state.copyWith(
+      isAuthenticated: true,
+      userPlaylists: userRaw
+          .map((p) => SpotifyPlaylist.fromJson(p, isUserOwned: true))
+          .toList(),
+      featuredPlaylists: featuredRaw
+          .map((p) => SpotifyPlaylist.fromJson(p, isFeatured: true))
+          .toList(),
+      categoryPlaylists: workoutRaw
+          .map((p) => SpotifyPlaylist.fromJson(p))
+          .toList(),
+    );
   }
 
   Future<void> syncPlaylist(String playlistId, String playlistName) async {
@@ -139,7 +166,12 @@ class SpotifyNotifier extends StateNotifier<SpotifyState> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('spotify_token');
     _accessToken = null;
-    state = state.copyWith(isAuthenticated: false, playlists: []);
+    state = state.copyWith(
+      isAuthenticated: false,
+      userPlaylists: [],
+      featuredPlaylists: [],
+      categoryPlaylists: [],
+    );
   }
 }
 

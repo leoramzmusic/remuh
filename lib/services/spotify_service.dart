@@ -39,7 +39,6 @@ class SpotifyService {
     }
   }
 
-  /// Obtiene las playlists del usuario
   Future<List<Map<String, dynamic>>> getUserPlaylists(
     String accessToken,
   ) async {
@@ -60,6 +59,59 @@ class SpotifyService {
       }
     } catch (e) {
       Logger.error('SpotifyService: Error fetching playlists: $e');
+      return [];
+    }
+  }
+
+  /// Obtiene playlists destacadas
+  Future<List<Map<String, dynamic>>> getFeaturedPlaylists(
+    String accessToken,
+  ) async {
+    try {
+      final response = await http.get(
+        Uri.parse('https://api.spotify.com/v1/browse/featured-playlists'),
+        headers: {'Authorization': 'Bearer $accessToken'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return List<Map<String, dynamic>>.from(data['playlists']['items']);
+      } else {
+        Logger.error(
+          'SpotifyService: Failed to fetch featured: ${response.statusCode}',
+        );
+        return [];
+      }
+    } catch (e) {
+      Logger.error('SpotifyService: Error fetching featured: $e');
+      return [];
+    }
+  }
+
+  /// Obtiene playlists de una categoría específica
+  Future<List<Map<String, dynamic>>> getCategoryPlaylists(
+    String accessToken,
+    String categoryId,
+  ) async {
+    try {
+      final response = await http.get(
+        Uri.parse(
+          'https://api.spotify.com/v1/browse/categories/$categoryId/playlists',
+        ),
+        headers: {'Authorization': 'Bearer $accessToken'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return List<Map<String, dynamic>>.from(data['playlists']['items']);
+      } else {
+        Logger.error(
+          'SpotifyService: Failed to fetch category $categoryId: ${response.statusCode}',
+        );
+        return [];
+      }
+    } catch (e) {
+      Logger.error('SpotifyService: Error fetching category $categoryId: $e');
       return [];
     }
   }

@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../domain/entities/track.dart';
 import 'library_view_model.dart';
 
@@ -26,10 +27,37 @@ enum SortOption {
   mostPlayed,
 }
 
-/// Provider for sort option
-final sortOptionProvider = StateProvider<SortOption>(
-  (ref) => SortOption.nameAz,
-);
+/// Provider for sort option with persistence
+final sortOptionProvider =
+    StateNotifierProvider<SortOptionNotifier, SortOption>((ref) {
+      return SortOptionNotifier();
+    });
+
+class SortOptionNotifier extends StateNotifier<SortOption> {
+  static const String _keySortOption = 'library_sort_option';
+
+  SortOptionNotifier() : super(SortOption.nameAz) {
+    _loadSortOption();
+  }
+
+  Future<void> _loadSortOption() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final index = prefs.getInt(_keySortOption);
+      if (index != null && index < SortOption.values.length) {
+        state = SortOption.values[index];
+      }
+    } catch (e) {
+      // Fallback to default
+    }
+  }
+
+  Future<void> setSortOption(SortOption option) async {
+    state = option;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_keySortOption, option.index);
+  }
+}
 
 /// Provider for layout toggle (list vs grid)
 final isGridViewProvider = StateProvider<bool>((ref) => false);

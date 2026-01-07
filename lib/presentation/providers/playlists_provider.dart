@@ -290,10 +290,10 @@ class PlaylistsNotifier extends StateNotifier<AsyncValue<List<Playlist>>> {
     }
 
     // B. Individual Exported Playlists
-    for (var sPlaylist in spotifyState.playlists) {
-      final pName = sPlaylist['name'] as String;
-      final imageUrl =
-          (sPlaylist['images'] as List?)?.firstOrNull?['url'] as String?;
+    // B. Individual Exported Playlists
+    for (var sPlaylist in spotifyState.userPlaylists) {
+      final pName = sPlaylist.name;
+      final imageUrl = sPlaylist.coverUrl;
 
       // Count tracks for this specific playlist in our local spotify_tracks db
       final pTracks = allSpotifyTracks.where((t) => t.playlistName == pName);

@@ -67,30 +67,29 @@ class SpotifySyncScreen extends ConsumerWidget {
     WidgetRef ref,
     SpotifyState state,
   ) {
-    if (state.playlists.isEmpty) {
+    if (state.userPlaylists.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
 
     return ListView.builder(
-      itemCount: state.playlists.length,
+      itemCount: state.userPlaylists.length,
       itemBuilder: (context, index) {
-        final playlist = state.playlists[index];
-        final images = playlist['images'] as List;
+        final playlist = state.userPlaylists[index];
 
         return ListTile(
-          leading: images.isNotEmpty
+          leading: playlist.coverUrl != null
               ? ClipRRect(
                   borderRadius: BorderRadius.circular(4),
                   child: Image.network(
-                    images[0]['url'],
+                    playlist.coverUrl!,
                     width: 50,
                     height: 50,
                     fit: BoxFit.cover,
                   ),
                 )
               : const Icon(Icons.playlist_play_rounded),
-          title: Text(playlist['name']),
-          subtitle: Text('${playlist['tracks']['total']} canciones'),
+          title: Text(playlist.name),
+          subtitle: Text('${playlist.trackCount} canciones'),
           trailing: state.isSyncing
               ? const SizedBox(
                   width: 20,
@@ -101,7 +100,7 @@ class SpotifySyncScreen extends ConsumerWidget {
           onTap: () async {
             await ref
                 .read(spotifyProvider.notifier)
-                .syncPlaylist(playlist['id'], playlist['name']);
+                .syncPlaylist(playlist.id, playlist.name);
             if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Sincronización completada')),
