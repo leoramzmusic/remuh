@@ -9,6 +9,7 @@ import '../widgets/track_artwork.dart';
 import '../widgets/library/folders_view.dart';
 import '../widgets/library/genres_view.dart';
 import '../widgets/spotify_view.dart';
+import '../widgets/library/network_view.dart';
 import '../../domain/entities/playlist.dart';
 import '../providers/customization_provider.dart';
 import '../../core/theme/icon_sets.dart';
@@ -31,6 +32,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final List<String> _tabs = [
+    'Mi Red',
     'Canciones',
     'Álbumes',
     'Artistas',
@@ -42,7 +44,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: _tabs.length, vsync: this);
+    _tabController = TabController(
+      length: _tabs.length,
+      vsync: this,
+      initialIndex: 1,
+    );
   }
 
   @override
@@ -140,6 +146,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         child: TabBarView(
           controller: _tabController,
           children: [
+            const NetworkView(),
             _buildTracksList(context, ref, libraryState, icons),
             _buildAlbumsList(context, ref, libraryState, icons),
             _buildArtistsList(context, ref, libraryState, icons),
